@@ -34,6 +34,11 @@ KilimoPRO bridges the gap between national-scale agricultural policy (NASIP 2026
 | 🤖 Advisory Engine | Personalized crop management recommendations | KALRO crop calendars, ML models |
 | 🌍 Climate Risk | Long-term climate risk assessment + adaptation options | Satellite NDVI, ARDC, climate models |
 | 💬 Ask KilimoPRO | Natural language Q&A in Swahili & English | LLM + agricultural knowledge base |
+| 🏛️ Council Mode | Multi-LLM deliberation for complex decisions (5 expert personas) | Multi-provider LLM synthesis |
+| 📚 Research | Latest agricultural research papers for farmers | Semantic Scholar API |
+| 📊 Advanced Forecasting | Quant-based price forecasts with VaR, EWMA, GARCH | Historical price data |
+| 🎥 Training Videos | Download agricultural training videos for offline access | yt-dlp (YouTube, 1000+ sites) |
+| 🌐 Content Scraping | Scrape ag news, alerts, and extension materials | Firecrawl API |
 
 ## 🏗️ Architecture
 

@@ -18,6 +18,7 @@ import { diseaseRoutes } from './routes/disease.js';
 import { farmRoutes } from './routes/farm.js';
 import { reportRoutes } from './routes/reports.js';
 import { statsRoutes } from './routes/stats.js';
+import { researchRoutes } from './routes/research.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const PORT = parseInt(process.env.PORT || '3001');
@@ -86,6 +87,7 @@ async function start() {
   await app.register(farmRoutes, { prefix: '/api/farm' });
   await app.register(reportRoutes, { prefix: '/api/reports' });
   await app.register(statsRoutes, { prefix: '/api/stats' });
+  await app.register(researchRoutes, { prefix: '/api/research' });
 
   // ─── Start Server ─────────────────────────────────────────────────
   try {
