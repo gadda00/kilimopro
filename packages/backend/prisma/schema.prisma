@@ -1,0 +1,194 @@
+// KilimoPRO Database Schema
+// PostgreSQL via Supabase
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  phone        String   @unique
+  name         String?
+  role         Role     @default(FARMER)
+  language     String   @default("sw")
+  county       String?
+  subCounty    String?
+  ward         String?
+  farmSize     Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActiveAt DateTime?
+  farm         Farm?
+  devices      Device[]
+  subscriptions Subscription[]
+  reports      FarmerReport[]
+  loans        Loan[]
+  @@index([phone])
+  @@index([county])
+}
+
+enum Role { FARMER COOPERATIVE AGRIBUSINESS EXTENSION_OFFICER ADMIN }
+
+model Device {
+  id           String   @id @default(cuid())
+  userId       String
+  fcmToken     String?
+  platform     String
+  appVersion   String?
+  lastSeen     DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model Farm {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  name         String?
+  latitude     Float
+  longitude    Float
+  elevation    Float?
+  soilType     String?
+  soilPH       Float?
+  agroEcologicalZone String?
+  irrigationType String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plots        Plot[]
+  @@index([latitude, longitude])
+}
+
+model Plot {
+  id           String   @id @default(cuid())
+  farmId       String
+  name         String?
+  sizeHectares Float
+  cropType     String?
+  variety      String?
+  plantingDate DateTime?
+  expectedHarvestDate DateTime?
+  status       String   @default("EMPTY")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  farm         Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  observations Observation[]
+  @@index([farmId])
+  @@index([cropType])
+}
+
+model Observation {
+  id           String   @id @default(cuid())
+  plotId       String
+  type         String
+  value        String
+  imageUrl     String?
+  latitude     Float?
+  longitude    Float?
+  createdAt    DateTime @default(now())
+  plot         Plot     @relation(fields: [plotId], references: [id], onDelete: Cascade)
+  @@index([plotId])
+  @@index([type, createdAt])
+}
+
+model WeatherCache {
+  id           String   @id @default(cuid())
+  latitude     Float
+  longitude    Float
+  source       String
+  forecast     Json
+  fetchedAt    DateTime @default(now())
+  @@index([latitude, longitude, source])
+}
+
+model MarketPrice {
+  id           String   @id @default(cuid())
+  marketName   String
+  county       String
+  commodity    String
+  unit         String
+  price        Float
+  currency     String   @default("KES")
+  source       String
+  reportedAt   DateTime
+  createdAt    DateTime @default(now())
+  @@index([commodity, county, reportedAt])
+  @@index([marketName, commodity])
+}
+
+model Advisory {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String
+  title        String
+  body         String
+  priority     String   @default("info")
+  actionUrl    String?
+  readAt       DateTime?
+  createdAt    DateTime @default(now())
+  @@index([userId, createdAt])
+  @@index([type, priority])
+}
+
+model FarmerReport {
+  id           String   @id @default(cuid())
+  userId       String
+  reportType   String
+  commodity    String?
+  value        Float?
+  notes        String?
+  imageUrl     String?
+  latitude     Float?
+  longitude    Float?
+  verified     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([reportType, createdAt])
+  @@index([commodity])
+}
+
+model Subscription {
+  id           String   @id @default(cuid())
+  userId       String
+  tier         String   @default("free")
+  startDate    DateTime @default(now())
+  endDate      DateTime?
+  amount       Float?
+  status       String   @default("active")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, status])
+}
+
+model Loan {
+  id           String   @id @default(cuid())
+  userId       String
+  amount       Float
+  currency     String   @default("KES")
+  purpose      String
+  creditScore  Int
+  status       String   @default("pending")
+  lender       String?
+  interestRate Float?
+  termMonths   Int?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, status])
+}
+
+model DiseaseDetection {
+  id           String   @id @default(cuid())
+  userId       String?
+  imagePath    String
+  detectedDisease String?
+  confidence   Float?
+  cropType     String?
+  location     String?
+  createdAt    DateTime @default(now())
+  @@index([detectedDisease])
+  @@index([createdAt])
+}

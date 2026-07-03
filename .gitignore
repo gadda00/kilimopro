@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.apk
+*.aab
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.db-journal
+
+# Models (too large for git)
+packages/mobile/assets/models/*.tflite
+packages/mobile/assets/models/*.h5
+checkpoints/
+
+# Logs
+*.log
+dev.log
+server.log
+
+# Docker
+docker-compose.override.yml
+
+# Prisma
+packages/backend/prisma/migrations/
+
+# Flutter
+.packages
+.pub-cache/
+.pub/
+ios/
+macos/
+windows/
+linux/
+web/
+
+# Assets
+packages/mobile/assets/fonts/

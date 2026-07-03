@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # ─── Backend API ──────────────────────────────────────────────
+  api:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgresql://kilimopro:kilimopro@db:5432/kilimopro?schema=public
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+      - PORT=3001
+      - JWT_SECRET=\${JWT_SECRET}
+      - OPENWEATHER_API_KEY=\${OPENWEATHER_API_KEY}
+      - FAOSTAT_API_KEY=\${FAOSTAT_API_KEY}
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  # ─── Frontend (kilimo.pro) ────────────────────────────────────
+  web:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:3001
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ─── PostgreSQL Database ──────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=kilimopro
+      - POSTGRES_PASSWORD=kilimopro
+      - POSTGRES_DB=kilimopro
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # ─── Redis Cache ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # ─── Data Pipeline Scheduler ──────────────────────────────────
+  pipeline:
+    build:
+      context: ./packages/data-pipeline
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://kilimopro:kilimopro@db:5432/kilimopro?schema=public
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+volumes:
+  pgdata:
