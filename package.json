@@ -1,0 +1,72 @@
+{
+  "name": "kilimopro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "KilimoPRO - AI-Powered Agricultural Intelligence Platform",
+  "workspaces": [
+    "packages/*",
+    "packages/backend/libs/*",
+    "packages/backend/services/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:mobile\"",
+    "dev:backend": "cd packages/backend && npm run dev",
+    "dev:frontend": "cd packages/frontend && npm run dev",
+    "dev:mobile": "cd packages/mobile && flutter run",
+    "dev:services": "concurrently \"npm run dev:weather\" \"npm run dev:market\" \"npm run dev:user\" \"npm run dev:api-gateway\"",
+    "dev:weather": "cd packages/backend/services/weather-service && npm run dev",
+    "dev:market": "cd packages/backend/services/market-service && npm run dev",
+    "dev:user": "cd packages/backend/services/user-service && npm run dev",
+    "dev:api-gateway": "cd packages/backend/services/api-gateway && npm run dev",
+    
+    "build": "npm run build:libs && npm run build:services && npm run build:frontend && npm run build:mobile",
+    "build:libs": "cd packages/backend/libs && npm run build:all",
+    "build:services": "cd packages/backend/services && npm run build:all",
+    "build:frontend": "cd packages/frontend && npm run build",
+    "build:mobile": "cd packages/mobile && flutter build apk",
+    
+    "start": "npm run start:services",
+    "start:services": "concurrently \"npm run start:weather\" \"npm run start:market\" \"npm run start:user\" \"npm run start:api-gateway\"",
+    "start:weather": "cd packages/backend/services/weather-service && npm run start",
+    "start:market": "cd packages/backend/services/market-service && npm run start",
+    "start:user": "cd packages/backend/services/user-service && npm run start",
+    "start:api-gateway": "cd packages/backend/services/api-gateway && npm run start",
+    
+    "lint": "npm run lint:libs && npm run lint:services && npm run lint:frontend",
+    "lint:libs": "cd packages/backend/libs && npm run lint:all",
+    "lint:services": "cd packages/backend/services && npm run lint:all",
+    "lint:frontend": "cd packages/frontend && npm run lint",
+    
+    "test": "npm run test:libs && npm run test:services",
+    "test:libs": "cd packages/backend/libs && npm run test:all",
+    "test:services": "cd packages/backend/services && npm run test:all",
+    
+    "docker:build": "docker-compose -f docker-compose.microservices.yml build",
+    "docker:up": "docker-compose -f docker-compose.microservices.yml up -d",
+    "docker:down": "docker-compose -f docker-compose.microservices.yml down",
+    "docker:logs": "docker-compose -f docker-compose.microservices.yml logs -f",
+    
+    "db:push": "cd packages/backend && npm run db:push",
+    "db:generate": "cd packages/backend && npm run db:generate",
+    "db:studio": "cd packages/backend && npm run db:studio",
+    
+    "clean": "rm -rf node_modules packages/*/node_modules packages/backend/libs/*/node_modules packages/backend/services/*/node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "agriculture",
+    "farming",
+    "ai",
+    "kenya",
+    "africa",
+    "microservices",
+    "api"
+  ],
+  "author": "Victor Ndunda <mututandunda@gmail.com>",
+  "license": "MIT"
+}

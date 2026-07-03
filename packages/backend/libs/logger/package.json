@@ -1,0 +1,21 @@
+{
+  "name": "@kilimopro/logger",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Structured logging for KilimoPRO microservices",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "winston": "^3.13.0",
+    "@kilimopro/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0",
+    "@types/winston": "^2.4.4"
+  }
+}

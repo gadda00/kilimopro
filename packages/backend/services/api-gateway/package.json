@@ -1,0 +1,33 @@
+{
+  "name": "@kilimopro/api-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API Gateway for KilimoPRO microservices",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/swagger": "^8.14.0",
+    "@fastify/swagger-ui": "^3.0.0",
+    "@kilimopro/shared-types": "workspace:*",
+    "@kilimopro/logger": "workspace:*",
+    "@kilimopro/cache-client": "workspace:*",
+    "@kilimopro/message-queue": "workspace:*",
+    "fastify": "^4.28.0",
+    "fastify-plugin": "^4.0.0",
+    "node-fetch": "^3.3.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  }
+}

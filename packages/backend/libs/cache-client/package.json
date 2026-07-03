@@ -1,0 +1,22 @@
+{
+  "name": "@kilimopro/cache-client",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Redis cache client for KilimoPRO microservices",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "@kilimopro/logger": "workspace:*",
+    "@kilimopro/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0",
+    "@types/ioredis": "^4.28.0"
+  }
+}

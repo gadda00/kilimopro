@@ -1,0 +1,140 @@
+version: '3.8'
+
+# KilimoPRO Microservices Docker Compose
+# Run with: docker-compose -f docker-compose.microservices.yml up -d
+
+services:
+  # NATS Message Queue
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"  # HTTP monitoring
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=kilimopro
+      - POSTGRES_PASSWORD=kilimopro
+      - POSTGRES_DB=kilimopro
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kilimopro"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Weather Service
+  weather-service:
+    build:
+      context: ./packages/backend/services/weather-service
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgresql://kilimopro:kilimopro@db:5432/kilimopro?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_SERVERS=nats://nats:4222
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+      - KAOP_API_URL=${KAOP_API_URL}
+      - KAOP_API_KEY=${KAOP_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # API Gateway (to be created)
+  api-gateway:
+    build:
+      context: ./packages/backend/services/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - HOST=0.0.0.0
+      - WEATHER_SERVICE_URL=http://weather-service:3002
+      - MARKET_SERVICE_URL=http://market-service:3003
+      - USER_SERVICE_URL=http://user-service:3004
+      - NATS_SERVERS=nats://nats:4222
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      weather-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Frontend (Next.js)
+  web:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api-gateway:3001
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  nats-data:
+  redis-data:
+  pgdata:
