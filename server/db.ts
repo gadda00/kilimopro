@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, farms, climateAlerts, InsertFarm, InsertClimateAlert, marketPrices, diseaseDetections, InsertDiseaseDetection, educationalContent, chatHistory, InsertChatHistory } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,87 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function updateUserLanguage(userId: number, language: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.update(users).set({ language: language as any }).where(eq(users.id, userId));
+}
+
+// Farm queries
+export async function getUserFarms(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(farms).where(eq(farms.userId, userId));
+}
+
+export async function createFarm(farmData: InsertFarm) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(farms).values(farmData);
+  return result;
+}
+
+// Climate alerts queries
+export async function getUserAlerts(userId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(climateAlerts)
+    .where(eq(climateAlerts.userId, userId))
+    .orderBy((t) => t.createdAt)
+    .limit(limit);
+}
+
+export async function createAlert(alertData: InsertClimateAlert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.insert(climateAlerts).values(alertData);
+}
+
+// Market prices queries
+export async function getMarketPrices(crop: string, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(marketPrices)
+    .where(eq(marketPrices.crop, crop))
+    .orderBy((t) => t.date)
+    .limit(limit);
+}
+
+// Disease detection queries
+export async function getUserDiseaseDetections(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(diseaseDetections)
+    .where(eq(diseaseDetections.userId, userId))
+    .orderBy((t) => t.createdAt);
+}
+
+export async function createDiseaseDetection(detectionData: InsertDiseaseDetection) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.insert(diseaseDetections).values(detectionData);
+}
+
+// Educational content queries
+export async function getEducationalContent(language: "en" | "sw" = "en") {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(educationalContent)
+    .where(eq(educationalContent.language, language));
+}
+
+// Chat history queries
+export async function getUserChatHistory(userId: number, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(chatHistory)
+    .where(eq(chatHistory.userId, userId))
+    .orderBy((t) => t.createdAt)
+    .limit(limit);
+}
+
+export async function saveChatMessage(messageData: InsertChatHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.insert(chatHistory).values(messageData);
+}
