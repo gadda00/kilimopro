@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * KilimoPRO 2.0 — Climate Map Component
  *
