@@ -15,7 +15,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { DataAggregator } from '@/lib/data/aggregator';
-import { IGAD, getCountryCoordinates } from '@/lib/data/constants';
+import { IGAD, getCountryCoordinates, getCurrentSeason } from '@/lib/data/constants';
 
 interface SmsRequest {
   from?: string;      // phone number

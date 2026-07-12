@@ -97,7 +97,8 @@ export function getCountry(code: string) {
 }
 
 export function getCountryCoordinates(code: string): [number, number] {
-  return IGAD.COORDS[code.toUpperCase() as keyof typeof IGAD.COORDS] || IGAD.COORDS.KE;
+  const coords = IGAD.COORDS[code.toUpperCase() as keyof typeof IGAD.COORDS] || IGAD.COORDS.KE;
+  return [coords[0], coords[1]];
 }
 
 export function getCountryCurrency(code: string): string {
