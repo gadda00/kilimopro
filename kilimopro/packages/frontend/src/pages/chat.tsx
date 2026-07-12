@@ -217,8 +217,19 @@ export default function ChatPage() {
     setInput('');
     setLoading(true);
 
-    // Generate AI response (in production, this would call an LLM API)
-    const response = generateAIResponse(text);
+    // Call the real AI chat API
+    let response: string;
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, language: 'en' }),
+      });
+      const data = await res.json();
+      response = data.response || data.error || 'Sorry, I could not respond.';
+    } catch {
+      response = 'Network error. Please try again.';
+    }
 
     // Simulate streaming/typing effect for better UX
     setLoading(false);
