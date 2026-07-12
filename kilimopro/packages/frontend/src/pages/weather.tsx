@@ -10,8 +10,11 @@ export default function WeatherPage({ country }: { country: string }) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [alerts, setAlerts] = useState<WeatherAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     const [lat, lon] = getCountryCoordinates(country);
     Promise.all([
       DataAggregator.getWeather(lat, lon, 7),
@@ -19,6 +22,9 @@ export default function WeatherPage({ country }: { country: string }) {
     ]).then(([w, a]) => {
       setWeather(w);
       setAlerts(a);
+      setLoading(false);
+    }).catch(() => {
+      setError('Could not load weather data. Please try again.');
       setLoading(false);
     });
   }, [country]);
@@ -32,7 +38,18 @@ export default function WeatherPage({ country }: { country: string }) {
       />
     </div>
   );
-  if (!weather) return <div className="p-8 text-center text-gray-500">No weather data</div>;
+  if (error) return (
+    <div className="p-8 text-center">
+      <p className="text-red-500 mb-3">⚠️ {error}</p>
+      <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-xl bg-kilimo-600 text-white text-sm">Retry</button>
+    </div>
+  );
+  if (!weather || !weather.forecast || weather.forecast.length === 0) return (
+    <div className="p-8 text-center text-gray-500">
+      <p>No weather data available for this location.</p>
+      <p className="text-xs mt-1">Try selecting a different country.</p>
+    </div>
+  );
 
   const countryInfo = IGAD.COUNTRIES[country as keyof typeof IGAD.COUNTRIES];
   const today = weather.forecast[0];
@@ -151,8 +168,8 @@ export default function WeatherPage({ country }: { country: string }) {
         </ResponsiveContainer>
       </motion.div>
 
-      {/* 7-day strip */}
-      <div className="grid grid-cols-7 gap-2">
+      {/* 7-day strip — scrollable on mobile */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:grid sm:grid-cols-7 sm:overflow-visible">
         {weather.forecast.map((day, i) => (
           <motion.div
             key={i}

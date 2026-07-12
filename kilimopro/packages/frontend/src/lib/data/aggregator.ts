@@ -39,17 +39,34 @@ export const DataAggregator = {
   // ─── Market Prices ─────────────────────────────────────────────────────────
   async getMarketPrices(countryCode?: string, crop?: string): Promise<MarketPriceData[]> {
     if (countryCode) {
-      return cached(
-        `prices:${countryCode}:${crop || 'all'}`,
-        6 * 3600 * 1000, // 6 hours
-        () => fetchFAOMarketPrices(countryCode, crop),
-      );
+      // Try FAOSTAT first, fall back to cached data (FAOSTAT blocks cloud IPs)
+      const { getFallbackPrices } = await import('./fallback-prices');
+      try {
+        const apiData = await cached(
+          `prices:${countryCode}:${crop || 'all'}`,
+          6 * 3600 * 1000,
+          () => fetchFAOMarketPrices(countryCode, crop),
+        );
+        if (apiData && apiData.length > 0) return apiData;
+        // FAOSTAT returned empty — use fallback
+        return getFallbackPrices(countryCode, crop || undefined);
+      } catch {
+        return getFallbackPrices(countryCode, crop || undefined);
+      }
     }
 
     // Fetch for all IGAD countries
+    const { getFallbackPrices } = await import('./fallback-prices');
     const countries = Object.keys(IGAD.COUNTRIES);
     const results = await Promise.all(
-      countries.map(c => cached(`prices:${c}:${crop || 'all'}`, 6 * 3600 * 1000, () => fetchFAOMarketPrices(c, crop))),
+      countries.map(async c => {
+        try {
+          const apiData = await cached(`prices:${c}:${crop || 'all'}`, 6 * 3600 * 1000, () => fetchFAOMarketPrices(c, crop));
+          return (apiData && apiData.length > 0) ? apiData : getFallbackPrices(c, crop || undefined);
+        } catch {
+          return getFallbackPrices(c, crop || undefined);
+        }
+      }),
     );
     return results.flat();
   },

@@ -18,10 +18,16 @@ const TYPE_ICONS: Record<string, any> = {
 export default function AlertsPage({ country }: { country: string }) {
   const [alerts, setAlerts] = useState<ICPACAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     DataAggregator.getHazardAlerts(country).then(a => {
       setAlerts(a);
+      setLoading(false);
+    }).catch(() => {
+      setError('Could not load climate alerts. Please try again.');
       setLoading(false);
     });
   }, [country]);
@@ -29,6 +35,12 @@ export default function AlertsPage({ country }: { country: string }) {
   const countryInfo = IGAD.COUNTRIES[country as keyof typeof IGAD.COUNTRIES];
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading alerts...</div>;
+  if (error) return (
+    <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+      <p className="text-red-500 mb-3">⚠️ {error}</p>
+      <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-xl bg-kilimo-600 text-white text-sm">Retry</button>
+    </div>
+  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">

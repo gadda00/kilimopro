@@ -9,6 +9,7 @@ import { useState, type ReactNode } from 'react';
 import { CloudRain, AlertTriangle, TrendingUp, Globe, Brain, Camera, BookOpen, User, Menu, X } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { CountrySelector } from '@/components/shared/country-selector';
+import { IGAD } from '@/lib/data/constants';
 
 export function Layout({ children, country, onCountryChange }: {
   children: ReactNode;
@@ -71,6 +72,14 @@ export function Layout({ children, country, onCountryChange }: {
               </button>
               <div className="hidden sm:block">
                 <CountrySelector value={country} onChange={onCountryChange} />
+              </div>
+              <div className="sm:hidden">
+                <button
+                  onClick={() => onCountryChange(country === 'KE' ? 'ET' : country === 'ET' ? 'UG' : country === 'UG' ? 'SD' : country === 'SD' ? 'SS' : country === 'SS' ? 'SO' : country === 'SO' ? 'DJ' : country === 'DJ' ? 'ER' : 'KE')}
+                  className="px-2 py-1 rounded text-xs font-medium bg-white/10 hover:bg-white/20"
+                >
+                  {IGAD.COUNTRIES[country as keyof typeof IGAD.COUNTRIES]?.flag || '🌍'}
+                </button>
               </div>
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
