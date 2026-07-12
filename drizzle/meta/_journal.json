@@ -15,6 +15,13 @@
       "when": 1783538974469,
       "tag": "0001_woozy_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1783839788750,
+      "tag": "0002_aspiring_stranger",
+      "breakpoints": true
     }
   ]
 }

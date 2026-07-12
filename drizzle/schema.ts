@@ -124,3 +124,180 @@ export const chatHistory = mysqlTable("chatHistory", {
 
 export type ChatHistory = typeof chatHistory.$inferSelect;
 export type InsertChatHistory = typeof chatHistory.$inferInsert;
+
+// ============================================
+// KILIMOPRO 2.0 — IGAD MULTI-COUNTRY TABLES
+// ============================================
+
+// IGAD Countries (8 East African nations)
+export const countries = mysqlTable("countries", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 2 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  iso3: varchar("iso3", { length: 3 }).notNull(),
+  faoCode: varchar("faoCode", { length: 10 }),
+  currency: varchar("currency", { length: 3 }).notNull(),
+  flag: varchar("flag", { length: 5 }),
+  igadMember: boolean("igadMember").default(true).notNull(),
+  capitalLatitude: decimal("capitalLatitude", { precision: 10, scale: 7 }),
+  capitalLongitude: decimal("capitalLongitude", { precision: 11, scale: 7 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Country = typeof countries.$inferSelect;
+export type InsertCountry = typeof countries.$inferInsert;
+
+// Regions/Provinces/Counties
+export const regions = mysqlTable("regions", {
+  id: int("id").autoincrement().primaryKey(),
+  countryCode: varchar("countryCode", { length: 2 }).notNull(),
+  code: varchar("code", { length: 10 }).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 11, scale: 7 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Region = typeof regions.$inferSelect;
+export type InsertRegion = typeof regions.$inferInsert;
+
+// Crops with FAOSTAT codes
+export const crops = mysqlTable("crops", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 10 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  scientificName: varchar("scientificName", { length: 100 }),
+  category: varchar("category", { length: 50 }).notNull(),
+  faostatCode: varchar("faostatCode", { length: 10 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Crop = typeof crops.$inferSelect;
+export type InsertCrop = typeof crops.$inferInsert;
+
+// Markets
+export const markets = mysqlTable("markets", {
+  id: int("id").autoincrement().primaryKey(),
+  countryCode: varchar("countryCode", { length: 2 }).notNull(),
+  regionCode: varchar("regionCode", { length: 10 }),
+  name: varchar("name", { length: 100 }).notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 11, scale: 7 }),
+  marketType: varchar("marketType", { length: 50 }).default("wholesale"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Market = typeof markets.$inferSelect;
+export type InsertMarket = typeof markets.$inferInsert;
+
+// Climate Data (cached from Open-Meteo + ICPAC)
+export const climateData = mysqlTable("climateData", {
+  id: int("id").autoincrement().primaryKey(),
+  countryCode: varchar("countryCode", { length: 2 }).notNull(),
+  regionCode: varchar("regionCode", { length: 10 }),
+  date: timestamp("date").notNull(),
+  temperatureMin: decimal("temperatureMin", { precision: 5, scale: 2 }),
+  temperatureMax: decimal("temperatureMax", { precision: 5, scale: 2 }),
+  temperatureAvg: decimal("temperatureAvg", { precision: 5, scale: 2 }),
+  rainfall: decimal("rainfall", { precision: 8, scale: 2 }),
+  humidity: decimal("humidity", { precision: 5, scale: 2 }),
+  windSpeed: decimal("windSpeed", { precision: 5, scale: 2 }),
+  soilMoisture: decimal("soilMoisture", { precision: 5, scale: 2 }),
+  source: varchar("source", { length: 50 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ClimateDatum = typeof climateData.$inferSelect;
+export type InsertClimateDatum = typeof climateData.$inferInsert;
+
+// Hazard Alerts (from ICPAC)
+export const hazardAlerts = mysqlTable("hazardAlerts", {
+  id: int("id").autoincrement().primaryKey(),
+  alertType: mysqlEnum("alertType", ["drought", "flood", "pest", "rainfall", "extreme_rainfall", "locust"]).notNull(),
+  severity: mysqlEnum("severity", ["low", "moderate", "high", "extreme"]).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  affectedCountries: json("affectedCountries").notNull(),
+  affectedRegions: json("affectedRegions"),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate"),
+  source: varchar("source", { length: 50 }).default("ICPAC").notNull(),
+  advisory: text("advisory"),
+  mitigationMeasures: json("mitigationMeasures"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type HazardAlert = typeof hazardAlerts.$inferSelect;
+export type InsertHazardAlert = typeof hazardAlerts.$inferInsert;
+
+// Agriculture Watch (from ICPAC — monthly agricultural conditions report)
+export const agricultureWatch = mysqlTable("agricultureWatch", {
+  id: int("id").autoincrement().primaryKey(),
+  date: timestamp("date").notNull(),
+  summary: text("summary").notNull(),
+  cropConditions: json("cropConditions").notNull(),
+  rangelandConditions: json("rangelandConditions").notNull(),
+  rainfallAnomalies: json("rainfallAnomalies"),
+  soilMoisture: json("soilMoisture"),
+  vegetationIndex: json("vegetationIndex"),
+  source: varchar("source", { length: 50 }).default("ICPAC").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AgricultureWatch = typeof agricultureWatch.$inferSelect;
+export type InsertAgricultureWatch = typeof agricultureWatch.$inferInsert;
+
+// Advisory Content (agricultural recommendations per country/crop)
+export const advisoryContent = mysqlTable("advisoryContent", {
+  id: int("id").autoincrement().primaryKey(),
+  countryCode: varchar("countryCode", { length: 2 }),
+  cropCode: varchar("cropCode", { length: 10 }),
+  advisoryType: mysqlEnum("advisoryType", ["planting", "harvesting", "fertilizer", "pest_control", "irrigation", "general"]).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  content: text("content").notNull(),
+  language: mysqlEnum("language", ["en", "sw", "am", "ar", "so"]).default("en").notNull(),
+  season: varchar("season", { length: 50 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdvisoryContentItem = typeof advisoryContent.$inferSelect;
+export type InsertAdvisoryContent = typeof advisoryContent.$inferInsert;
+
+// SMS Logs (for Africa's Talking / Twilio integration)
+export const smsLogs = mysqlTable("smsLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  phoneNumber: varchar("phoneNumber", { length: 20 }).notNull(),
+  message: text("message").notNull(),
+  direction: mysqlEnum("direction", ["in", "out"]).notNull(),
+  status: mysqlEnum("status", ["sent", "delivered", "failed", "read", "pending"]).notNull(),
+  gateway: varchar("gateway", { length: 50 }),
+  gatewayMessageId: varchar("gatewayMessageId", { length: 100 }),
+  cost: decimal("cost", { precision: 10, scale: 4 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SmsLog = typeof smsLogs.$inferSelect;
+export type InsertSmsLog = typeof smsLogs.$inferInsert;
+
+// USSD Sessions
+export const ussdSessions = mysqlTable("ussdSessions", {
+  id: int("id").autoincrement().primaryKey(),
+  phoneNumber: varchar("phoneNumber", { length: 20 }).notNull(),
+  sessionId: varchar("sessionId", { length: 100 }).notNull(),
+  network: varchar("network", { length: 50 }),
+  currentMenu: varchar("currentMenu", { length: 100 }),
+  menuHistory: json("menuHistory"),
+  userInput: json("userInput"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UssdSession = typeof ussdSessions.$inferSelect;
+export type InsertUssdSession = typeof ussdSessions.$inferInsert;
