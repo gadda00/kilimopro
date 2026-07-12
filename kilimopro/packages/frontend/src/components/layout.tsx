@@ -6,7 +6,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, type ReactNode } from 'react';
-import { CloudRain, AlertTriangle, TrendingUp, Globe, Brain, Camera, BookOpen, User, Menu, X } from 'lucide-react';
+import { CloudRain, AlertTriangle, TrendingUp, Globe, Brain, Camera, BookOpen, User, Menu, X, Activity, Calendar, BarChart3 } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { CountrySelector } from '@/components/shared/country-selector';
 import { IGAD } from '@/lib/data/constants';
@@ -24,7 +24,11 @@ export function Layout({ children, country, onCountryChange }: {
     { href: '/', label: t('nav.home'), icon: Globe },
     { href: '/weather', label: t('nav.weather'), icon: CloudRain },
     { href: '/alerts', label: t('nav.alerts'), icon: AlertTriangle },
+    { href: '/watch', label: 'Ag Watch', icon: Activity },
+    { href: '/forecast', label: 'Forecast', icon: CloudRain },
     { href: '/market', label: t('nav.market'), icon: TrendingUp },
+    { href: '/stats', label: 'Stats', icon: BarChart3 },
+    { href: '/calendar', label: 'Calendar', icon: Calendar },
     { href: '/chat', label: t('nav.chat'), icon: Brain },
     { href: '/disease', label: t('nav.disease'), icon: Camera },
     { href: '/education', label: t('nav.education'), icon: BookOpen },
