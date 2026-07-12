@@ -1,0 +1,900 @@
+     1→/**
+     2→ * API Gateway - Routes Unit Tests
+     3→ */
+     4→
+     5→import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+     6→import {
+     7→  createMockRequest,
+     8→  createMockReply,
+     9→  createMockCacheClient,
+    10→  createMockDatabaseClient,
+    11→  createMockMessageQueueClient,
+    12→  createMockUser,
+    13→  createMockWeatherForecast,
+    14→  createMockMarketPrice,
+    15→  createMockQuery,
+    16→  createMockSuccessResponse,
+    17→  createMockError,
+    18→  createMockToken,
+    19→} from '@kilimopro/backend-test';
+    20→
+    21→// Mock the API Gateway modules
+    22→jest.mock('../src/config/index', () => ({
+    23→  config: {
+    24→    port: 3001,
+    25→    host: 'localhost',
+    26→    isProduction: false,
+    27→    rateLimit: { max: 100, timeWindow: 60000 },
+    28→    corsOrigins: ['*'],
+    29→    swaggerHost: 'localhost:3001',
+    30→    services: {
+    31→      weather: 'http://weather-service:3002',
+    32→      market: 'http://market-service:3003',
+    33→      user: 'http://user-service:3004',
+    34→      advisory: 'http://advisory-service:3005',
+    35→      disease: 'http://disease-service:3006',
+    36→      farm: 'http://farm-service:3007',
+    37→    },
+    38→  },
+    39→}));
+    40→
+    41→// Mock fetch for service communication
+    42→jest.mock('node-fetch', () => jest.fn());
+    43→
+    44→describe('API Gateway - Routes', () => {
+    45→  let mockCache: any;
+    46→  let mockDb: any;
+    47→  let mockMq: any;
+    48→  let fetchMock: any;
+    49→
+    50→  beforeEach(() => {
+    51→    mockCache = createMockCacheClient();
+    52→    mockDb = createMockDatabaseClient();
+    53→    mockMq = createMockMessageQueueClient();
+    54→    fetchMock = require('node-fetch');
+    55→    jest.clearAllMocks();
+    56→  });
+    57→
+    58→  afterEach(() => {
+    59→    jest.restoreAllMocks();
+    60→  });
+    61→
+    62→  describe('Route Configuration', () => {
+    63→    it('should have weather service routes', () => {
+    64→      const config = require('../src/config/index').config;
+    65→
+    66→      expect(config.services.weather).toBe('http://weather-service:3002');
+    67→    });
+    68→
+    69→    it('should have market service routes', () => {
+    70→      const config = require('../src/config/index').config;
+    71→
+    72→      expect(config.services.market).toBe('http://market-service:3003');
+    73→    });
+    74→
+    75→    it('should have user service routes', () => {
+    76→      const config = require('../src/config/index').config;
+    77→
+    78→      expect(config.services.user).toBe('http://user-service:3004');
+    79→    });
+    80→
+    81→    it('should have advisory service routes', () => {
+    82→      const config = require('../src/config/index').config;
+    83→
+    84→      expect(config.services.advisory).toBe('http://advisory-service:3005');
+    85→    });
+    86→
+    87→    it('should have disease service routes', () => {
+    88→      const config = require('../src/config/index').config;
+    89→
+    90→      expect(config.services.disease).toBe('http://disease-service:3006');
+    91→    });
+    92→
+    93→    it('should have farm service routes', () => {
+    94→      const config = require('../src/config/index').config;
+    95→
+    96→      expect(config.services.farm).toBe('http://farm-service:3007');
+    97→    });
+    98→  });
+    99→
+   100→  describe('Request Routing', () => {
+   101→    it('should route weather requests to weather service', async () => {
+   102→      const config = require('../src/config/index').config;
+   103→      const weatherUrl = `${config.services.weather}/api/weather/forecast`;
+   104→      
+   105→      fetchMock.mockResolvedValue({
+   106→        ok: true,
+   107→        status: 200,
+   108→        json: () => Promise.resolve({ success: true, data: [createMockWeatherForecast()] }),
+   109→      });
+   110→
+   111→      const response = await fetchMock(weatherUrl, {
+   112→        method: 'GET',
+   113→        headers: { 'Content-Type': 'application/json' },
+   114→      });
+   115→
+   116→      expect(fetchMock).toHaveBeenCalledWith(weatherUrl, expect.any(Object));
+   117→      expect(response.ok).toBe(true);
+   118→    });
+   119→
+   120→    it('should route market requests to market service', async () => {
+   121→      const config = require('../src/config/index').config;
+   122→      const marketUrl = `${config.services.market}/api/market/prices`;
+   123→      
+   124→      fetchMock.mockResolvedValue({
+   125→        ok: true,
+   126→        status: 200,
+   127→        json: () => Promise.resolve({ success: true, data: [createMockMarketPrice()] }),
+   128→      });
+   129→
+   130→      const response = await fetchMock(marketUrl, {
+   131→        method: 'GET',
+   132→        headers: { 'Content-Type': 'application/json' },
+   133→      });
+   134→
+   135→      expect(fetchMock).toHaveBeenCalledWith(marketUrl, expect.any(Object));
+   136→      expect(response.ok).toBe(true);
+   137→    });
+   138→
+   139→    it('should route user requests to user service', async () => {
+   140→      const config = require('../src/config/index').config;
+   141→      const userUrl = `${config.services.user}/api/users/me`;
+   142→      
+   143→      fetchMock.mockResolvedValue({
+   144→        ok: true,
+   145→        status: 200,
+   146→        json: () => Promise.resolve({ success: true, data: createMockUser() }),
+   147→      });
+   148→
+   149→      const response = await fetchMock(userUrl, {
+   150→        method: 'GET',
+   151→        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer test-token' },
+   152→      });
+   153→
+   154→      expect(fetchMock).toHaveBeenCalledWith(userUrl, expect.any(Object));
+   155→      expect(response.ok).toBe(true);
+   156→    });
+   157→
+   158→    it('should route advisory requests to advisory service', async () => {
+   159→      const config = require('../src/config/index').config;
+   160→      const advisoryUrl = `${config.services.advisory}/api/advisory/content`;
+   161→      
+   162→      fetchMock.mockResolvedValue({
+   163→        ok: true,
+   164→        status: 200,
+   165→        json: () => Promise.resolve({ success: true, data: [] }),
+   166→      });
+   167→
+   168→      const response = await fetchMock(advisoryUrl, {
+   169→        method: 'GET',
+   170→        headers: { 'Content-Type': 'application/json' },
+   171→      });
+   172→
+   173→      expect(fetchMock).toHaveBeenCalledWith(advisoryUrl, expect.any(Object));
+   174→      expect(response.ok).toBe(true);
+   175→    });
+   176→
+   177→    it('should route disease requests to disease service', async () => {
+   178→      const config = require('../src/config/index').config;
+   179→      const diseaseUrl = `${config.services.disease}/api/disease/detect`;
+   180→      
+   181→      fetchMock.mockResolvedValue({
+   182→        ok: true,
+   183→        status: 200,
+   184→        json: () => Promise.resolve({ success: true, data: {} }),
+   185→      });
+   186→
+   187→      const response = await fetchMock(diseaseUrl, {
+   188→        method: 'POST',
+   189→        headers: { 'Content-Type': 'application/json' },
+   190→        body: JSON.stringify({ image: 'test' }),
+   191→      });
+   192→
+   193→      expect(fetchMock).toHaveBeenCalledWith(diseaseUrl, expect.any(Object));
+   194→      expect(response.ok).toBe(true);
+   195→    });
+   196→
+   197→    it('should route farm requests to farm service', async () => {
+   198→      const config = require('../src/config/index').config;
+   199→      const farmUrl = `${config.services.farm}/api/farm/farms`;
+   200→      
+   201→      fetchMock.mockResolvedValue({
+   202→        ok: true,
+   203→        status: 200,
+   204→        json: () => Promise.resolve({ success: true, data: [] }),
+   205→      });
+   206→
+   207→      const response = await fetchMock(farmUrl, {
+   208→        method: 'GET',
+   209→        headers: { 'Content-Type': 'application/json' },
+   210→      });
+   211→
+   212→      expect(fetchMock).toHaveBeenCalledWith(farmUrl, expect.any(Object));
+   213→      expect(response.ok).toBe(true);
+   214→    });
+   215→  });
+   216→
+   217→  describe('Request Headers', () => {
+   218→    it('should forward authorization header', async () => {
+   219→      const token = createMockToken('test-user-id', 'FARMER');
+   220→      const config = require('../src/config/index').config;
+   221→      const weatherUrl = `${config.services.weather}/api/weather/forecast`;
+   222→      
+   223→      fetchMock.mockResolvedValue({
+   224→        ok: true,
+   225→        status: 200,
+   226→        json: () => Promise.resolve({}),
+   227→      });
+   228→
+   229→      await fetchMock(weatherUrl, {
+   230→        method: 'GET',
+   231→        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+   232→      });
+   233→
+   234→      expect(fetchMock).toHaveBeenCalledWith(
+   235→        weatherUrl,
+   236→        expect.objectContaining({
+   237→          headers: expect.objectContaining({
+   238→            'Authorization': `Bearer ${token}`,
+   239→          }),
+   240→        })
+   241→      );
+   242→    });
+   243→
+   244→    it('should forward content-type header', async () => {
+   245→      const config = require('../src/config/index').config;
+   246→      const weatherUrl = `${config.services.weather}/api/weather/forecast`;
+   247→      
+   248→      fetchMock.mockResolvedValue({
+   249→        ok: true,
+   250→        status: 200,
+   251→        json: () => Promise.resolve({}),
+   252→      });
+   253→
+   254→      await fetchMock(weatherUrl, {
+   255→        method: 'GET',
+   256→        headers: { 'Content-Type': 'application/json' },
+   257→      });
+   258→
+   259→      expect(fetchMock).toHaveBeenCalledWith(
+   260→        weatherUrl,
+   261→        expect.objectContaining({
+   262→          headers: expect.objectContaining({
+   263→            'Content-Type': 'application/json',
+   264→          }),
+   265→        })
+   266→      );
+   267→    });
+   268→
+   269→    it('should forward custom headers', async () => {
+   270→      const config = require('../src/config/index').config;
+   271→      const weatherUrl = `${config.services.weather}/api/weather/forecast`;
+   272→      
+   273→      fetchMock.mockResolvedValue({
+   274→        ok: true,
+   275→        status: 200,
+   276→        json: () => Promise.resolve({}),
+   277→      });
+   278→
+   279→      await fetchMock(weatherUrl, {
+   280→        method: 'GET',
+   281→        headers: { 'Content-Type': 'application/json', 'X-Custom-Header': 'custom-value' },
+   282→      });
+   283→
+   284→      expect(fetchMock).toHaveBeenCalledWith(
+   285→        weatherUrl,
+   286→        expect.objectContaining({
+   287→          headers: expect.objectContaining({
+   288→            'X-Custom-Header': 'custom-value',
+   289→          }),
+   290→        })
+   291→      );
+   292→    });
+   293→  });
+   294→
+   295→  describe('Query Parameters', () => {
+   296→    it('should forward query parameters', async () => {
+   297→      const config = require('../src/config/index').config;
+   298→      const query = createMockQuery({
+   299→        lat: -1.2921,
+   300→        lon: 36.8219,
+   301→        days: 7,
+   302→      });
+   303→      
+   304→      const weatherUrl = `${config.services.weather}/api/weather/forecast?lat=${query.lat}&lon=${query.lon}&days=${query.days}`;
+   305→      
+   306→      fetchMock.mockResolvedValue({
+   307→        ok: true,
+   308→        status: 200,
+   309→        json: () => Promise.resolve({}),
+   310→      });
+   311→
+   312→      await fetchMock(weatherUrl, {
+   313→        method: 'GET',
+   314→        headers: { 'Content-Type': 'application/json' },
+   315→      });
+   316→
+   317→      expect(fetchMock).toHaveBeenCalledWith(
+   318→        weatherUrl,
+   319→        expect.any(Object)
+   320→      );
+   321→    });
+   322→
+   323→    it('should handle multiple query parameters', async () => {
+   324→      const config = require('../src/config/index').config;
+   325→      const query = createMockQuery({
+   326→        commodity: 'Maize',
+   327→        market: 'Nairobi',
+   328→        county: 'Nairobi',
+   329→        limit: 100,
+   330→        page: 1,
+   331→      });
+   332→      
+   333→      const marketUrl = `${config.services.market}/api/market/prices?commodity=${query.commodity}&market=${query.market}&county=${query.county}&limit=${query.limit}&page=${query.page}`;
+   334→      
+   335→      fetchMock.mockResolvedValue({
+   336→        ok: true,
+   337→        status: 200,
+   338→        json: () => Promise.resolve({}),
+   339→      });
+   340→
+   341→      await fetchMock(marketUrl, {
+   342→        method: 'GET',
+   343→        headers: { 'Content-Type': 'application/json' },
+   344→      });
+   345→
+   346→      expect(fetchMock).toHaveBeenCalledWith(
+   347→        marketUrl,
+   348→        expect.any(Object)
+   349→      );
+   350→    });
+   351→
+   352→    it('should handle URL encoding for query parameters', async () => {
+   353→      const config = require('../src/config/index').config;
+   354→      const query = createMockQuery({
+   355→        name: 'My Farm Name', // Contains space
+   356→        location: 'Nairobi, Kenya', // Contains comma
+   357→      });
+   358→      
+   359→      const encodedName = encodeURIComponent(query.name);
+   360→      const encodedLocation = encodeURIComponent(query.location);
+   361→      const farmUrl = `${config.services.farm}/api/farm/farms?name=${encodedName}&location=${encodedLocation}`;
+   362→      
+   363→      fetchMock.mockResolvedValue({
+   364→        ok: true,
+   365→        status: 200,
+   366→        json: () => Promise.resolve({}),
+   367→      });
+   368→
+   369→      await fetchMock(farmUrl, {
+   370→        method: 'GET',
+   371→        headers: { 'Content-Type': 'application/json' },
+   372→      });
+   373→
+   374→      expect(fetchMock).toHaveBeenCalledWith(
+   375→        farmUrl,
+   376→        expect.any(Object)
+   377→      );
+   378→    });
+   379→  });
+   380→
+   381→  describe('Request Body', () => {
+   382→    it('should forward request body for POST requests', async () => {
+   383→      const config = require('../src/config/index').config;
+   384→      const authUrl = `${config.services.user}/api/auth/register`;
+   385→      
+   386→      const userData = {
+   387→        email: 'test@example.com',
+   388→        phone: '+254724346971',
+   389→        name: 'Test User',
+   390→        password: 'securePassword123!',
+   391→      };
+   392→      
+   393→      fetchMock.mockResolvedValue({
+   394→        ok: true,
+   395→        status: 200,
+   396→        json: () => Promise.resolve({}),
+   397→      });
+   398→
+   399→      await fetchMock(authUrl, {
+   400→        method: 'POST',
+   401→        headers: { 'Content-Type': 'application/json' },
+   402→        body: JSON.stringify(userData),
+   403→      });
+   404→
+   405→      expect(fetchMock).toHaveBeenCalledWith(
+   406→        authUrl,
+   407→        expect.objectContaining({
+   408→          method: 'POST',
+   409→          body: JSON.stringify(userData),
+   410→        })
+   411→      );
+   412→    });
+   413→
+   414→    it('should forward request body for PUT requests', async () => {
+   415→      const config = require('../src/config/index').config;
+   416→      const farmUrl = `${config.services.farm}/api/farm/farms/farm-id`;
+   417→      
+   418→      const farmData = {
+   419→        name: 'Updated Farm Name',
+   420→        soilType: 'Sandy',
+   421→      };
+   422→      
+   423→      fetchMock.mockResolvedValue({
+   424→        ok: true,
+   425→        status: 200,
+   426→        json: () => Promise.resolve({}),
+   427→      });
+   428→
+   429→      await fetchMock(farmUrl, {
+   430→        method: 'PUT',
+   431→        headers: { 'Content-Type': 'application/json' },
+   432→        body: JSON.stringify(farmData),
+   433→      });
+   434→
+   435→      expect(fetchMock).toHaveBeenCalledWith(
+   436→        farmUrl,
+   437→        expect.objectContaining({
+   438→          method: 'PUT',
+   439→          body: JSON.stringify(farmData),
+   440→        })
+   441→      );
+   442→    });
+   443→
+   444→    it('should handle empty request body', async () => {
+   445→      const config = require('../src/config/index').config;
+   446→      const weatherUrl = `${config.services.weather}/api/weather/forecast`;
+   447→      
+   448→      fetchMock.mockResolvedValue({
+   449→        ok: true,
+   450→        status: 200,
+   451→        json: () => Promise.resolve({}),
+   452→      });
+   453→
+   454→      await fetchMock(weatherUrl, {
+   455→        method: 'GET',
+   456→        headers: { 'Content-Type': 'application/json' },
+   457→      });
+   458→
+   459→      expect(fetchMock).toHaveBeenCalledWith(
+   460→        weatherUrl,
+   461→        expect.objectContaining({
+   462→          body: undefined,
+   463→        })
+   464→      );
+   465→    });
+   466→  });
+   467→
+   468→  describe('Response Handling', () => {
+   469→    it('should handle successful responses', async () => {
+   470→      fetchMock.mockResolvedValue({
+   471→        ok: true,
+   472→        status: 200,
+   473→        json: () => Promise.resolve({ success: true, data: {} }),
+   474→      });
+   475→
+   476→      const response = await fetchMock('http://test.com', {
+   477→        method: 'GET',
+   478→        headers: { 'Content-Type': 'application/json' },
+   479→      });
+   480→
+   481→      expect(response.ok).toBe(true);
+   482→      expect(response.status).toBe(200);
+   483→    });
+   484→
+   485→    it('should handle error responses', async () => {
+   486→      fetchMock.mockResolvedValue({
+   487→        ok: false,
+   488→        status: 404,
+   489→        json: () => Promise.resolve({ success: false, error: { code: 'NOT_FOUND' } }),
+   490→      });
+   491→
+   492→      const response = await fetchMock('http://test.com', {
+   493→        method: 'GET',
+   494→        headers: { 'Content-Type': 'application/json' },
+   495→      });
+   496→
+   497→      expect(response.ok).toBe(false);
+   498→      expect(response.status).toBe(404);
+   499→    });
+   500→
+   501→    it('should handle service errors', async () => {
+   502→      fetchMock.mockResolvedValue({
+   503→        ok: false,
+   504→        status: 500,
+   505→        json: () => Promise.resolve({ success: false, error: { code: 'INTERNAL_ERROR' } }),
+   506→      });
+   507→
+   508→      const response = await fetchMock('http://test.com', {
+   509→        method: 'GET',
+   510→        headers: { 'Content-Type': 'application/json' },
+   511→      });
+   512→
+   513→      expect(response.ok).toBe(false);
+   514→      expect(response.status).toBe(500);
+   515→    });
+   516→
+   517→    it('should handle network errors', async () => {
+   518→      fetchMock.mockRejectedValue(new Error('Network error'));
+   519→
+   520→      try {
+   521→        await fetchMock('http://test.com', {
+   522→          method: 'GET',
+   523→          headers: { 'Content-Type': 'application/json' },
+   524→        });
+   525→      } catch (error) {
+   526→        expect(error).toBeInstanceOf(Error);
+   527→        expect((error as Error).message).toBe('Network error');
+   528→      }
+   529→    });
+   530→
+   531→    it('should handle timeout errors', async () => {
+   532→      fetchMock.mockRejectedValue(new Error('Request timeout'));
+   533→
+   534→      try {
+   535→        await fetchMock('http://test.com', {
+   536→          method: 'GET',
+   537→          headers: { 'Content-Type': 'application/json' },
+   538→          timeout: 5000,
+   539→        });
+   540→      } catch (error) {
+   541→        expect(error).toBeInstanceOf(Error);
+   542→        expect((error as Error).message).toBe('Request timeout');
+   543→      }
+   544→    });
+   545→  });
+   546→
+   547→  describe('Error Handling', () => {
+   548→    it('should handle service not available', async () => {
+   549→      fetchMock.mockResolvedValue({
+   550→        ok: false,
+   551→        status: 503,
+   552→        json: () => Promise.resolve({ success: false, error: { code: 'SERVICE_UNAVAILABLE' } }),
+   553→      });
+   554→
+   555→      const response = await fetchMock('http://test.com', {
+   556→        method: 'GET',
+   557→        headers: { 'Content-Type': 'application/json' },
+   558→      });
+   559→
+   560→      expect(response.ok).toBe(false);
+   561→      expect(response.status).toBe(503);
+   562→    });
+   563→
+   564→    it('should handle invalid request errors', async () => {
+   565→      fetchMock.mockResolvedValue({
+   566→        ok: false,
+   567→        status: 400,
+   568→        json: () => Promise.resolve({ success: false, error: { code: 'VALIDATION_ERROR' } }),
+   569→      });
+   570→
+   571→      const response = await fetchMock('http://test.com', {
+   572→        method: 'GET',
+   573→        headers: { 'Content-Type': 'application/json' },
+   574→      });
+   575→
+   576→      expect(response.ok).toBe(false);
+   577→      expect(response.status).toBe(400);
+   578→    });
+   579→
+   580→    it('should handle unauthorized errors', async () => {
+   581→      fetchMock.mockResolvedValue({
+   582→        ok: false,
+   583→        status: 401,
+   584→        json: () => Promise.resolve({ success: false, error: { code: 'UNAUTHORIZED' } }),
+   585→      });
+   586→
+   587→      const response = await fetchMock('http://test.com', {
+   588→        method: 'GET',
+   589→        headers: { 'Content-Type': 'application/json' },
+   590→      });
+   591→
+   592→      expect(response.ok).toBe(false);
+   593→      expect(response.status).toBe(401);
+   594→    });
+   595→
+   596→    it('should handle forbidden errors', async () => {
+   597→      fetchMock.mockResolvedValue({
+   598→        ok: false,
+   599→        status: 403,
+   600→        json: () => Promise.resolve({ success: false, error: { code: 'FORBIDDEN' } }),
+   601→      });
+   602→
+   603→      const response = await fetchMock('http://test.com', {
+   604→        method: 'GET',
+   605→        headers: { 'Content-Type': 'application/json' },
+   606→      });
+   607→
+   608→      expect(response.ok).toBe(false);
+   609→      expect(response.status).toBe(403);
+   610→    });
+   611→
+   612→    it('should handle rate limited errors', async () => {
+   613→      fetchMock.mockResolvedValue({
+   614→        ok: false,
+   615→        status: 429,
+   616→        json: () => Promise.resolve({ success: false, error: { code: 'RATE_LIMITED' } }),
+   617→      });
+   618→
+   619→      const response = await fetchMock('http://test.com', {
+   620→        method: 'GET',
+   621→        headers: { 'Content-Type': 'application/json' },
+   622→      });
+   623→
+   624→      expect(response.ok).toBe(false);
+   625→      expect(response.status).toBe(429);
+   626→    });
+   627→  });
+   628→
+   629→  describe('Response Formatting', () => {
+   630→    it('should format successful proxy response', async () => {
+   631→      const data = { success: true, data: [createMockWeatherForecast()] };
+   632→      
+   633→      fetchMock.mockResolvedValue({
+   634→        ok: true,
+   635→        status: 200,
+   636→        json: () => Promise.resolve(data),
+   637→      });
+   638→
+   639→      const response = await fetchMock('http://test.com', {
+   640→        method: 'GET',
+   641→        headers: { 'Content-Type': 'application/json' },
+   642→      });
+   643→
+   644→      const json = await response.json();
+   645→      expect(json.success).toBe(true);
+   646→      expect(json.data).toBeDefined();
+   647→    });
+   648→
+   649→    it('should format error proxy response', async () => {
+   650→      const error = { success: false, error: { code: 'NOT_FOUND', message: 'Resource not found' } };
+   651→      
+   652→      fetchMock.mockResolvedValue({
+   653→        ok: false,
+   654→        status: 404,
+   655→        json: () => Promise.resolve(error),
+   656→      });
+   657→
+   658→      const response = await fetchMock('http://test.com', {
+   659→        method: 'GET',
+   660→        headers: { 'Content-Type': 'application/json' },
+   661→      });
+   662→
+   663→      const json = await response.json();
+   664→      expect(json.success).toBe(false);
+   665→      expect(json.error).toBeDefined();
+   666→      expect(json.error.code).toBe('NOT_FOUND');
+   667→    });
+   668→
+   669→    it('should add request metadata to response', async () => {
+   670→      const data = { success: true, data: {} };
+   671→      
+   672→      fetchMock.mockResolvedValue({
+   673→        ok: true,
+   674→        status: 200,
+   675→        json: () => Promise.resolve(data),
+   676→      });
+   677→
+   678→      const response = await fetchMock('http://test.com', {
+   679→        method: 'GET',
+   680→        headers: { 'Content-Type': 'application/json' },
+   681→      });
+   682→
+   683→      const json = await response.json();
+   684→      expect(json.meta).toBeDefined();
+   685→      expect(json.meta.requestId).toBeDefined();
+   686→      expect(json.meta.timestamp).toBeDefined();
+   687→    });
+   688→
+   689→    it('should add service metadata to response', async () => {
+   690→      const data = { success: true, data: {} };
+   691→      
+   692→      fetchMock.mockResolvedValue({
+   693→        ok: true,
+   694→        status: 200,
+   695→        json: () => Promise.resolve(data),
+   696→      });
+   697→
+   698→      const response = await fetchMock('http://test.com', {
+   699→        method: 'GET',
+   700→        headers: { 'Content-Type': 'application/json' },
+   701→      });
+   702→
+   703→      const json = await response.json();
+   704→      expect(json.meta.service).toBeDefined();
+   705→    });
+   706→  });
+   707→});
+   708→
+   709→describe('API Gateway - Route Middleware', () => {
+   710→  describe('Authentication Middleware', () => {
+   711→    it('should validate JWT token', () => {
+   712→      const token = createMockToken('test-user-id', 'FARMER');
+   713→      const request = createMockRequest({
+   714→        headers: { 'Authorization': `Bearer ${token}` },
+   715→      });
+   716→
+   717→      expect(request.headers.Authorization).toContain('Bearer');
+   718→      expect(request.headers.Authorization).toContain(token);
+   719→    });
+   720→
+   721→    it('should extract user from token', () => {
+   722→      const token = createMockToken('test-user-id', 'FARMER');
+   723→      const request = createMockRequest({
+   724→        headers: { 'Authorization': `Bearer ${token}` },
+   725→      });
+   726→
+   727→      // In the actual implementation, the middleware would extract the user
+   728→      expect(request.headers.Authorization).toBeDefined();
+   729→    });
+   730→
+   731→    it('should handle missing token', () => {
+   732→      const request = createMockRequest({
+   733→        headers: {},
+   734→      });
+   735→
+   736→      expect(request.headers.Authorization).toBeUndefined();
+   737→    });
+   738→
+   739→    it('should handle invalid token', () => {
+   740→      const request = createMockRequest({
+   741→        headers: { 'Authorization': 'Bearer invalid-token' },
+   742→      });
+   743→
+   744→      expect(request.headers.Authorization).toBe('Bearer invalid-token');
+   745→    });
+   746→  });
+   747→
+   748→  describe('Rate Limiting Middleware', () => {
+   749→    it('should limit requests by IP', () => {
+   750→      const request = createMockRequest({
+   751→        ip: '127.0.0.1',
+   752→      });
+   753→
+   754→      expect(request.ip).toBe('127.0.0.1');
+   755→    });
+   756→
+   757→    it('should limit requests by user', () => {
+   758→      const request = createMockRequest({
+   759→        user: { id: 'test-user-id' },
+   760→        ip: '127.0.0.1',
+   761→      });
+   762→
+   763→      expect(request.user?.id).toBe('test-user-id');
+   764→    });
+   765→
+   766→    it('should generate rate limit key', () => {
+   767→      const userId = 'test-user-id';
+   768→      const ip = '127.0.0.1';
+   769→
+   770→      const key = userId ? `user:${userId}` : `ip:${ip}`;
+   771→
+   772→      expect(key).toBe('user:test-user-id');
+   773→    });
+   774→
+   775→    it('should handle rate limit exceeded', () => {
+   776→      const error = createMockError({
+   777→        error: {
+   778→          code: 'RATE_LIMITED',
+   779→          message: 'Too many requests',
+   780→        },
+   781→      });
+   782→
+   783→      expect(error.success).toBe(false);
+   784→      expect(error.error.code).toBe('RATE_LIMITED');
+   785→    });
+   786→  });
+   787→
+   788→  describe('CORS Middleware', () => {
+   789→    it('should allow requests from allowed origins', () => {
+   790→      const config = require('../src/config/index').config;
+   791→
+   792→      expect(config.corsOrigins).toContain('*');
+   793→    });
+   794→
+   795→    it('should handle preflight requests', () => {
+   796→      const request = createMockRequest({
+   797→        method: 'OPTIONS',
+   798→        headers: { 'Origin': 'https://kilimo.pro' },
+   799→      });
+   800→
+   801→      expect(request.method).toBe('OPTIONS');
+   802→      expect(request.headers.Origin).toBe('https://kilimo.pro');
+   803→    });
+   804→
+   805→    it('should add CORS headers to response', () => {
+   806→      const reply = createMockReply();
+   807→      
+   808→      reply.header('Access-Control-Allow-Origin', '*');
+   809→      reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+   810→      reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+   811→
+   812→      expect(reply.header).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
+   813→      expect(reply.header).toHaveBeenCalledWith('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+   814→      expect(reply.header).toHaveBeenCalledWith('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+   815→    });
+   816→  });
+   817→
+   818→  describe('Error Handling Middleware', () => {
+   819→    it('should handle validation errors', () => {
+   820→      const error = createMockError({
+   821→        error: {
+   822→          code: 'VALIDATION_ERROR',
+   823→          message: 'Invalid request data',
+   824→          details: {
+   825→            errors: [
+   826→              { path: ['field'], message: 'Field is required', code: 'required' },
+   827→            ],
+   828→          },
+   829→        },
+   830→      });
+   831→
+   832→      expect(error.success).toBe(false);
+   833→      expect(error.error.code).toBe('VALIDATION_ERROR');
+   834→      expect(error.error.details).toBeDefined();
+   835→    });
+   836→
+   837→    it('should handle authentication errors', () => {
+   838→      const error = createMockError({
+   839→        error: {
+   840→          code: 'UNAUTHORIZED',
+   841→          message: 'Authentication required',
+   842→        },
+   843→      });
+   844→
+   845→      expect(error.success).toBe(false);
+   846→      expect(error.error.code).toBe('UNAUTHORIZED');
+   847→    });
+   848→
+   849→    it('should handle authorization errors', () => {
+   850→      const error = createMockError({
+   851→        error: {
+   852→          code: 'FORBIDDEN',
+   853→          message: 'Insufficient permissions',
+   854→        },
+   855→      });
+   856→
+   857→      expect(error.success).toBe(false);
+   858→      expect(error.error.code).toBe('FORBIDDEN');
+   859→    });
+   860→
+   861→    it('should handle not found errors', () => {
+   862→      const error = createMockError({
+   863→        error: {
+   864→          code: 'NOT_FOUND',
+   865→          message: 'Resource not found',
+   866→        },
+   867→      });
+   868→
+   869→      expect(error.success).toBe(false);
+   870→      expect(error.error.code).toBe('NOT_FOUND');
+   871→    });
+   872→
+   873→    it('should handle internal errors', () => {
+   874→      const error = createMockError({
+   875→        error: {
+   876→          code: 'INTERNAL_ERROR',
+   877→          message: 'Internal server error',
+   878→        },
+   879→      });
+   880→
+   881→      expect(error.success).toBe(false);
+   882→      expect(error.error.code).toBe('INTERNAL_ERROR');
+   883→    });
+   884→
+   885→    it('should add error metadata to response', () => {
+   886→      const error = createMockError({
+   887→        error: {
+   888→          code: 'VALIDATION_ERROR',
+   889→          message: 'Invalid request data',
+   890→        },
+   891→      });
+   892→
+   893→      expect(error.meta).toBeDefined();
+   894→      expect(error.meta.requestId).toBeDefined();
+   895→      expect(error.meta.timestamp).toBeDefined();
+   896→      expect(error.meta.path).toBeDefined();
+   897→    });
+   898→  });
+   899→});
+   900→

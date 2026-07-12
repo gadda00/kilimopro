@@ -1,0 +1,1773 @@
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1.2
+[notice] To update, run: pip3 install --upgrade pip
+
+================================================================================
+DOCUMENT 1: Untitled document.pdf
+================================================================================
+
+--- Page 1 ---
+/**
+* KilimoPRO 2.0 - API Layer
+*
+* Complete REST API implementation for the agricultural intelligence platform
+*/
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { DataAggregator, IGAD } from '@/lib/data';
+//
+========================================================================
+====
+// 1. MARKET PRICES API
+//
+========================================================================
+====
+// app/api/prices/route.ts
+const PriceQuerySchema = z.object({
+country: z.string().length(2).optional(),
+crop: z.string().optional(),
+year: z.coerce.number().optional(),
+limit: z.coerce.number().default(10).min(1).max(100),
+format: z.enum(['json', 'csv', 'sms']).default('json'),
+});
+/**
+* GET /api/prices
+* Get market prices for crops
+*
+* Query Parameters:
+* - country: 2-letter country code (KE, ET, UG, etc.)
+* - crop: Crop code or name (maize, wheat, sorghum, etc.)
+* - year: Year to fetch prices for
+* - limit: Maximum number of results
+* - format: Response format (json, csv, sms)
+*
+* Example:
+* /api/prices?country=KE&crop=maize
+* /api/prices?country=KE
+* /api/prices?crop=maize
+*/
+
+--- Page 2 ---
+export async function GET_Prices(request: Request) {
+const { searchParams } = new URL(request.url);
+const query = PriceQuerySchema.safeParse({
+country: searchParams.get('country'),
+crop: searchParams.get('crop'),
+year: searchParams.get('year'),
+limit: searchParams.get('limit'),
+format: searchParams.get('format'),
+});
+if (!query.success) {
+return NextResponse.json(
+{ success: false, error: 'Invalid query parameters', details: query.error },
+{ status: 400 }
+);
+}
+try {
+let data;
+if (query.data.country) {
+// Get prices for specific country
+data = await DataAggregator.getMarketPrices(query.data.country, query.data.crop);
+} else if (query.data.crop) {
+// Get prices for specific crop across all countries
+const countries = Object.keys(IGAD.COUNTRIES);
+data = await Promise.all(
+countries.map(c => DataAggregator.getMarketPrices(c, query.data.crop))
+);
+// Flatten the array
+data = data.flat();
+} else {
+// Get all prices for all countries
+const countries = Object.keys(IGAD.COUNTRIES);
+data = await Promise.all(
+countries.map(c => DataAggregator.getMarketPrices(c))
+);
+data = data.flat();
+}
+// Apply limit
+if (query.data.limit && Array.isArray(data)) {
+data = data.slice(0, query.data.limit);
+
+--- Page 3 ---
+}
+// Format response based on format parameter
+switch (query.data.format) {
+case 'csv':
+const csv = this.formatPricesAsCSV(data as any[]);
+return new NextResponse(csv, {
+headers: {
+'Content-Type': 'text/csv',
+'Content-Disposition': 'attachment; filename="market_prices.csv"'
+}
+});
+case 'sms':
+const sms = this.formatPricesAsSMS(data as any[]);
+return NextResponse.json({ success: true, message: sms });
+default:
+return NextResponse.json({
+success: true,
+data,
+count: Array.isArray(data) ? data.length : 1,
+timestamp: new Date().toISOString()
+});
+}
+} catch (error) {
+console.error('Market Prices API Error:', error);
+return NextResponse.json(
+{ success: false, error: 'Failed to fetch market prices' },
+{ status: 500 }
+);
+}
+}
+function formatPricesAsCSV(prices: any[]): string {
+if (!prices || prices.length === 0) return 'No data available';
+const headers = ['Country', 'Crop', 'Price', 'Currency', 'Unit', 'Date', 'Source'];
+const rows = prices.map(p => [
+p.country || p.countryCode || '',
+p.crop || p.item || '',
+p.price || p.value || '',
+p.currency || '',
+p.unit || '',
+
+--- Page 4 ---
+p.date || p.year || '',
+p.source || ''
+].join(','));
+return eaders.join(','), ...rows].join('\n');
+}
+function formatPricesAsSMS(prices: any[]): string {
+if (!prices || prices.length === 0) return 'No price data available';
+// SMS has 160 character limit, so we need to be concise
+const first = prices[0];
+return `${first.crop || first.item} in ${first.country || first.countryCode}: ${first.price}
+${first.currency}/${first.unit}`;
+}
+//
+========================================================================
+====
+// 2. CLIMATE ALERTS API
+//
+========================================================================
+====
+// app/api/climate/alerts/route.ts
+const AlertsQuerySchema = z.object({
+country: z.string().length(2).optional(),
+type: z.enum(['drought', 'flood', 'pest', 'rainfall', 'extreme_rainfall', 'locust']).optional(),
+severity: z.enum(['low', 'moderate', 'high', 'extreme']).optional(),
+active: z.coerce.boolean().default(true),
+limit: z.coerce.number().default(10).min(1).max(50),
+});
+/**
+* GET /api/climate/alerts
+* Get hazard alerts from ICPAC
+*
+* Query Parameters:
+* - country: 2-letter country code
+* - type: Alert type (drought, flood, pest, etc.)
+* - severity: Alert severity (low, moderate, high, extreme)
+* - active: Only active alerts
+* - limit: Maximum number of results
+
+--- Page 5 ---
+*
+* Example:
+* /api/climate/alerts?country=KE
+* /api/climate/alerts?type=drought&severity=high
+*/
+export async function GET_ClimateAlerts(request: Request) {
+const { searchParams } = new URL(request.url);
+const query = AlertsQuerySchema.safeParse({
+country: searchParams.get('country'),
+type: searchParams.get('type'),
+severity: searchParams.get('severity'),
+active: searchParams.get('active'),
+limit: searchParams.get('limit'),
+});
+if (!query.success) {
+return NextResponse.json(
+{ success: false, error: 'Invalid query parameters', details: query.error },
+{ status: 400 }
+);
+}
+try {
+let alerts = await DataAggregator.getHazardAlerts(query.data.country);
+// Filter by type
+if (query.data.type) {
+alerts = alerts.filter(a => a.type === query.data.type);
+}
+// Filter by severity
+if (query.data.severity) {
+alerts = alerts.filter(a => a.severity === query.data.severity);
+}
+// Filter by active status
+if (query.data.active) {
+alerts = alerts.filter(a => {
+if (!a.endDate) return true; // No end date means still active
+const endDate = new Date(a.endDate);
+return endDate >= new Date();
+});
+}
+
+--- Page 6 ---
+// Apply limit
+if (query.data.limit) {
+alerts = alerts.slice(0, query.data.limit);
+}
+return NextResponse.json({
+success: true,
+alerts,
+count: alerts.length,
+timestamp: new Date().toISOString()
+});
+} catch (error) {
+console.error('Climate Alerts API Error:', error);
+return NextResponse.json(
+{ success: false, error: 'Failed to fetch climate alerts' },
+{ status: 500 }
+);
+}
+}
+//
+========================================================================
+====
+// 3. AGRICULTURE WATCH API
+//
+========================================================================
+====
+// app/api/climate/watch/route.ts
+const WatchQuerySchema = z.object({
+date: z.string().optional(),
+summary: z.coerce.boolean().default(false),
+});
+/**
+* GET /api/climate/watch
+* Get Agriculture Watch data from ICPAC
+*
+* Query Parameters:
+* - date: Specific date to fetch
+* - summary: Only return summary
+*
+
+--- Page 7 ---
+* Example:
+* /api/climate/watch
+* /api/climate/watch?summary=true
+*/
+export async function GET_AgricultureWatch(request: Request) {
+const { searchParams } = new URL(request.url);
+const query = WatchQuerySchema.safeParse({
+date: searchParams.get('date'),
+summary: searchParams.get('summary'),
+});
+if (!query.success) {
+return NextResponse.json(
+{ success: false, error: 'Invalid query parameters', details: query.error },
+{ status: 400 }
+);
+}
+try {
+const watch = await DataAggregator.getAgricultureWatch();
+if (query.data.summary) {
+return NextResponse.json({
+success: true,
+summary: watch.summary,
+lastUpdated: watch.date,
+timestamp: new Date().toISOString()
+});
+}
+return NextResponse.json({
+success: true,
+...watch,
+timestamp: new Date().toISOString()
+});
+} catch (error) {
+console.error('Agriculture Watch API Error:', error);
+return NextResponse.json(
+{ success: false, error: 'Failed to fetch agriculture watch' },
+{ status: 500 }
+);
+}
+}
+
+--- Page 8 ---
+//
+========================================================================
+====
+// 4. CLIMATE FORECAST API
+//
+========================================================================
+====
+// app/api/climate/forecast/route.ts
+const ForecastQuerySchema = z.object({
+region: z.string().optional(),
+country: z.string().length(2).optional(),
+limit: z.coerce.number().default(5).min(1).max(20),
+});
+/**
+* GET /api/climate/forecast
+* Get climate forecast from ICPAC
+*
+* Query Parameters:
+* - region: Specific region (eastern, western, northern, southern)
+* - country: 2-letter country code
+* - limit: Maximum number of forecasts
+*
+* Example:
+* /api/climate/forecast
+* /api/climate/forecast?region=eastern
+* /api/climate/forecast?country=KE
+*/
+export async function GET_ClimateForecast(request: Request) {
+const { searchParams } = new URL(request.url);
+const query = ForecastQuerySchema.safeParse({
+region: searchParams.get('region'),
+country: searchParams.get('country'),
+limit: searchParams.get('limit'),
+});
+if (!query.success) {
+return NextResponse.json(
+{ success: false, error: 'Invalid query parameters', details: query.error },
+{ status: 400 }
+
+--- Page 9 ---
+);
+}
+try {
+let forecasts;
+if (query.data.country) {
+// Get forecast for specific country
+const country = IGAD.COUNTRIES[query.data.country as keyof typeof IGAD.COUNTRIES];
+if (!country) {
+return NextResponse.json(
+{ success: false, error: 'Invalid country code' },
+{ status: 400 }
+);
+}
+forecasts = await DataAggregator.getClimateForecast(country.name);
+} else {
+forecasts = await DataAggregator.getClimateForecast(query.data.region);
+}
+// Apply limit
+if (query.data.limit) {
+forecasts = forecasts.slice(0, query.data.limit);
+}
+return NextResponse.json({
+success: true,
+forecasts,
+count: forecasts.length,
+timestamp: new Date().toISOString()
+});
+} catch (error) {
+console.error('Climate Forecast API Error:', error);
+return NextResponse.json(
+{ success: false, error: 'Failed to fetch climate forecast' },
+{ status: 500 }
+);
+}
+}
+//
+========================================================================
+====
+// 5. WEATHER FORECAST API
+
+--- Page 10 ---
+//
+========================================================================
+====
+// app/api/climate/weather/route.ts
+const WeatherQuerySchema = z.object({
+latitude: z.coerce.number().optional(),
+longitude: z.coerce.number().optional(),
+country: z.string().length(2).optional(),
+region: z.string().optional(),
+days: z.coerce.number().default(7).min(1).max(14),
+});
+/**
+* GET /api/climate/weather
+* Get weather forecast from Open-Meteo
+*
+* Query Parameters:
+* - latitude: Latitude coordinate
+* - longitude: Longitude coordinate
+* - country: 2-letter country code (uses capital coordinates)
+* - region: Region name (uses capital coordinates)
+* - days: Number of forecast days (1-14)
+*
+* Example:
+* /api/climate/weather?latitude=-1.2921&longitude=36.8219
+* /api/climate/weather?country=KE
+* /api/climate/weather?country=KE&days=14
+*/
+export async function GET_Weather(request: Request) {
+const { searchParams } = new URL(request.url);
+const query = WeatherQuerySchema.safeParse({
+latitude: searchParams.get('latitude'),
+longitude: searchParams.get('longitude'),
+country: searchParams.get('country'),
+region: searchParams.get('region'),
+days: searchParams.get('days'),
+});
+if (!query.success) {
+return NextResponse.json(
+{ success: false, error: 'Invalid query parameters', details: query.error },
+
+--- Page 11 ---
+{ status: 400 }
+);
+}
+try {
+let lat = query.data.latitude;
+let lng = query.data.longitude;
+// Get coordinates from country or region
+if (query.data.country) {
+const coords = IGAD.COORDS[query.data.country as keyof typeof IGAD.COORDS];
+if (coords) {
+lat = coords[0];
+lng = coords[1];
+}
+}
+// If still no coordinates, use default (Nairobi)
+if (!lat || !lng) {
+lat = IGAD.COORDS.KE[0];
+lng = IGAD.COORDS.KE[1];
+}
+const weather = await DataAggregator.getWeather(lat, lng, query.data.days);
+return NextResponse.json({
+success: true,
+...weather,
+timestamp: new Date().toISOString()
+});
+} catch (error) {
+console.error('Weather API Error:', error);
+return NextResponse.json(
+{ success: false, error: 'Failed to fetch weather data' },
+{ status: 500 }
+);
+}
+}
+//
+========================================================================
+====
+// 6. PRODUCTION DATA API
+
+--- Page 12 ---
+//
+========================================================================
+====
+// app/api/production/route.ts
+const ProductionQuerySchema = z.object({
+country: z.string().length(2).optional(),
+crop: z.string().optional(),
+year: z.coerce.number().optional(),
+limit: z.coerce.number().default(10).min(1).max(100),
+});
+/**
+* GET /api/production
+* Get agricultural production data from FAOSTAT
+*
+* Query Parameters:
+* - country: 2-letter country code
+* - crop: Crop code or name
+* - year: Specific year
+* - limit: Maximum number of results
+*
+* Example:
+* /api/production?country=KE
+* /api/production?crop=maize
+* /api/production?country=KE&crop=maize&year=2023
+*/
+export async function GET_Production(request: Request) {
+const { searchParams } = new URL(request.url);
+const query = ProductionQuerySchema.safeParse({
+country: searchParams.get('country'),
+crop: searchParams.get('crop'),
+year: searchParams.get('year'),
+limit: searchParams.get('limit'),
+});
+if (!query.success) {
+return NextResponse.json(
+{ success: false, error: 'Invalid query parameters', details: query.error },
+{ status: 400 }
+);
+}
+
+--- Page 13 ---
+try {
+let data;
+if (query.data.country) {
+data = await DataAggregator.getProduction(query.data.country, query.data.crop);
+} else if (query.data.crop) {
+const countries = Object.keys(IGAD.COUNTRIES);
+data = await Promise.all(
+countries.map(c => DataAggregator.getProduction(c, query.data.crop))
+);
+data = data.flat();
+} else {
+const countries = Object.keys(IGAD.COUNTRIES);
+data = await Promise.all(
+countries.map(c => DataAggregator.getProduction(c))
+);
+data = data.flat();
+}
+// Apply limit
+if (query.data.limit && Array.isArray(data)) {
+data = data.slice(0, query.data.limit);
+}
+return NextResponse.json({
+success: true,
+data,
+count: Array.isArray(data) ? data.length : 1,
+timestamp: new Date().toISOString()
+});
+} catch (error) {
+console.error('Production API Error:', error);
+return NextResponse.json(
+{ success: false, error: 'Failed to fetch production data' },
+{ status: 500 }
+);
+}
+}
+//
+========================================================================
+====
+// 7. WORLD BANK INDICATORS API
+
+--- Page 14 ---
+//
+========================================================================
+====
+// app/api/indicators/route.ts
+const IndicatorsQuerySchema = z.object({
+country: z.string().length(2),
+indicator: z.string().optional(),
+year: z.coerce.number().optional(),
+});
+/**
+* GET /api/indicators
+* Get World Bank agriculture indicators
+*
+* Query Parameters:
+* - country: 2-letter country code (required)
+* - indicator: Specific indicator code
+* - year: Specific year
+*
+* Example:
+* /api/indicators?country=KE
+* /api/indicators?country=KE&indicator=AG.LND.AGRI.ZS
+*/
+export async function GET_Indicators(request: Request) {
+const { searchParams } = new URL(request.url);
+const query = IndicatorsQuerySchema.safeParse({
+country: searchParams.get('country'),
+indicator: searchParams.get('indicator'),
+year: searchParams.get('year'),
+});
+if (!query.success) {
+return NextResponse.json(
+{ success: false, error: 'Invalid query parameters', details: query.error },
+{ status: 400 }
+);
+}
+if (!query.data.country) {
+return NextResponse.json(
+{ success: false, error: 'Country parameter is required' },
+
+--- Page 15 ---
+{ status: 400 }
+);
+}
+try {
+const indicators = await DataAggregator.getAgricultureIndicators(query.data.country);
+// Filter by indicator if specified
+let data = indicators;
+if (query.data.indicator) {
+data = indicators.filter(i => i.indicatorCode === query.data.indicator);
+}
+// Filter by year if specified
+if (query.data.year) {
+data = data.filter(i => i.year === query.data.year);
+}
+return NextResponse.json({
+success: true,
+data,
+count: data.length,
+country: IGAD.COUNTRIES[query.data.country as keyof typeof IGAD.COUNTRIES]?.name,
+timestamp: new Date().toISOString()
+});
+} catch (error) {
+console.error('Indicators API Error:', error);
+return NextResponse.json(
+{ success: false, error: 'Failed to fetch indicators' },
+{ status: 500 }
+);
+}
+}
+//
+========================================================================
+====
+// 8. ADVISORY API
+//
+========================================================================
+====
+// app/api/advisory/route.ts
+
+--- Page 16 ---
+const AdvisoryQuerySchema = z.object({
+country: z.string().length(2).optional(),
+crop: z.string().optional(),
+type: z.string().optional(),
+language: z.string().default('en'),
+limit: z.coerce.number().default(10).min(1).max(50),
+});
+/**
+* GET /api/advisory
+* Get agricultural advisory content
+*
+* Query Parameters:
+* - country: 2-letter country code
+* - crop: Crop name
+* - type: Advisory type (planting, harvesting, fertilizer, pest_control)
+* - language: Response language (en, sw, am, ar, etc.)
+* - limit: Maximum number of results
+*
+* Example:
+* /api/advisory?country=KE&crop=maize
+* /api/advisory?type=planting
+*/
+export async function GET_Advisory(request: Request) {
+const { searchParams } = new URL(request.url);
+const query = AdvisoryQuerySchema.safeParse({
+country: searchParams.get('country'),
+crop: searchParams.get('crop'),
+type: searchParams.get('type'),
+language: searchParams.get('language'),
+limit: searchParams.get('limit'),
+});
+if (!query.success) {
+return NextResponse.json(
+{ success: false, error: 'Invalid query parameters', details: query.error },
+{ status: 400 }
+);
+}
+try {
+// In production, this would query the database
+// For now, return mock advisory content
+
+--- Page 17 ---
+const advisory = getAdvisoryContent(
+query.data.country,
+query.data.crop,
+query.data.type,
+query.data.language
+);
+// Apply limit
+if (query.data.limit && Array.isArray(advisory)) {
+advisory.slice(0, query.data.limit);
+}
+return NextResponse.json({
+success: true,
+advisory,
+count: Array.isArray(advisory) ? advisory.length : 1,
+timestamp: new Date().toISOString()
+});
+} catch (error) {
+console.error('Advisory API Error:', error);
+return NextResponse.json(
+{ success: false, error: 'Failed to fetch advisory content' },
+{ status: 500 }
+);
+}
+}
+function getAdvisoryContent(
+countryCode?: string,
+crop?: string,
+type?: string,
+language: string = 'en'
+) {
+// Mock adviso
+
+
+================================================================================
+DOCUMENT 2: Untitled document (1).pdf
+================================================================================
+
+--- Page 1 ---
+/**
+* KilimoPRO 2.0 - Data Layer
+*
+* Complete implementation of data source integrations and aggregation
+*/
+//
+========================================================================
+====
+// 1. CONSTANTS
+//
+========================================================================
+====
+export const IGAD = {
+COUNTRIES: {
+DJ: { name: 'Djibouti', code: 'DJ', faoCode: '834', iso3: 'DJI' },
+ER: { name: 'Eritrea', code: 'ER', faoCode: '232', iso3: 'ERI' },
+ET: { name: 'Ethiopia', code: 'ET', faoCode: '231', iso3: 'ETH' },
+KE: { name: 'Kenya', code: 'KE', faoCode: '404', iso3: 'KEN' },
+SO: { name: 'Somalia', code: 'SO', faoCode: '706', iso3: 'SOM' },
+SS: { name: 'South Sudan', code: 'SS', faoCode: '728', iso3: 'SSD' },
+SD: { name: 'Sudan', code: 'SD', faoCode: '729', iso3: 'SDN' },
+UG: { name: 'Uganda', code: 'UG', faoCode: '800', iso3: 'UGA' }
+},
+COORDS: {
+DJ: [11.8251, 42.5903],
+ER: [15.3229, 38.9251],
+ET: [9.0389, 38.7628],
+KE: [-1.2921, 36.8219],
+SO: [2.0411, 45.3437],
+SS: [4.8593, 31.5717],
+SD: [15.8905, 30.9731],
+UG: [0.3476, 32.5825]
+},
+CROPS: {
+maize: { code: '56', name: 'Maize', faoCode: '56', category: 'cereal' },
+wheat: { code: '67', name: 'Wheat', faoCode: '67', category: 'cereal' },
+sorghum: { code: '57', name: 'Sorghum', faoCode: '57', category: 'cereal' },
+millet: { code: '62', name: 'Millet', faoCode: '62', category: 'cereal' },
+rice: { code: '66', name: 'Rice, paddy', faoCode: '66', category: 'cereal' },
+coffee: { code: '1058', name: 'Coffee, green', faoCode: '1058', category: 'cash crop' },
+tea: { code: '1061', name: 'Tea', faoCode: '1061', category: 'cash crop' },
+cotton: { code: '1066', name: 'Cotton lint', faoCode: '1066', category: 'cash crop' }
+
+--- Page 2 ---
+},
+CURRENCIES: {
+DJ: 'DJF', ER: 'ERN', ET: 'ETB', KE: 'KES',
+SO: 'SOS', SS: 'SSP', SD: 'SDG', UG: 'UGX'
+}
+} as const;
+//
+========================================================================
+====
+// 2. FAOSTAT INTEGRATION
+//
+========================================================================
+====
+import axios from 'axios';
+const FAOSTAT_API = 'https://www.fao.org/faostat/en';
+const FAOSTAT_BULK_API = 'https://fenixservices.fao.org/faostat/static/bulkdownload';
+/**
+* FAOSTAT Data Domains
+*/
+export const FAOSTAT_DOMAINS = {
+PRODUCTION: 'QCL', // Production
+PRICES: 'FBS', // Food Balance Sheets (prices)
+TRADE: 'TP', // Trade
+LANDUSE: 'RL', // Land Use
+FERTILIZERS: 'RF', // Fertilizers
+PESTICIDES: 'RP', // Pesticides
+} as const;
+/**
+* FAOSTAT Elements (metrics)
+*/
+export const FAOSTAT_ELEMENTS = {
+PRODUCTION: '5510', // Production
+AREA: '5312', // Area harvested
+YIELD: '5419', // Yield
+PRICE: '5553', // Price
+EXPORT: '5910', // Export quantity
+IMPORT: '5911', // Import quantity
+} as const;
+
+--- Page 3 ---
+/**
+* Fetch market prices from FAOSTAT
+*/
+export async function fetchFAOMarketPrices(
+countryCode: string,
+cropCode?: string,
+year?: number
+) {
+const currentYear = year || new Date().getFullYear();
+const faoCountryCode = IGAD.COUNTRIES[countryCode as keyof typeof
+IGAD.COUNTRIES]?.faoCode;
+if (!faoCountryCode) {
+console.error(`Invalid country code: ${countryCode}`);
+return [];
+}
+try {
+// FAOSTAT API uses different codes for countries
+const params: Record<string, any> = {
+area: faoCountryCode,
+year: currentYear,
+format: 'json'
+};
+if (cropCode) {
+params.item = cropCode;
+} else {
+// Get all major crops
+params.item = Object.values(IGAD.CROPS)
+.map(c => c.faoCode)
+.join(',');
+}
+const response = await axios.get(`${FAOSTAT_API}/#api/data/FBS`, {
+params,
+timeout: 15000,
+headers: {
+'User-Agent': 'KilimoPRO/2.0 (+https://kilimopro.africa)'
+}
+});
+const data = response.data;
+
+--- Page 4 ---
+// Transform FAOSTAT data into our format
+if (!data || !data.data) return [];
+const prices = data.data.map((item: any) => ({
+countryCode,
+country: IGAD.COUNTRIES[countryCode as keyof typeof IGAD.COUNTRIES]?.name,
+cropCode: item.item,
+crop: IGAD.CROPS[item.item as keyof typeof IGAD.CROPS]?.name || item.item,
+year: item.year,
+price: parseFloat(item.value) || 0,
+unit: item.unit || 'USD',
+currency: IGAD.CURRENCIES[countryCode as keyof typeof IGAD.CURRENCIES] || 'USD',
+source: 'FAOSTAT',
+date: new Date(item.year, 0, 1).toISOString(),
+isVerified: true,
+createdAt: new Date().toISOString()
+}));
+return prices;
+} catch (error) {
+console.error('FAOSTAT Market Prices Error:', error);
+return [];
+}
+}
+/**
+* Fetch production data from FAOSTAT
+*/
+export async function fetchFAOProduction(
+countryCode: string,
+cropCode?: string,
+year?: number
+) {
+const currentYear = year || new Date().getFullYear();
+const faoCountryCode = IGAD.COUNTRIES[countryCode as keyof typeof
+IGAD.COUNTRIES]?.faoCode;
+if (!faoCountryCode) {
+console.error(`Invalid country code: ${countryCode}`);
+return [];
+}
+try {
+const params: Record<string, any> = {
+
+--- Page 5 ---
+area: faoCountryCode,
+year: currentYear,
+format: 'json'
+};
+if (cropCode) {
+params.item = cropCode;
+} else {
+params.item = Object.values(IGAD.CROPS)
+.map(c => c.faoCode)
+.join(',');
+}
+const response = await axios.get(`${FAOSTAT_API}/#api/data/QCL`, {
+params,
+timeout: 15000
+});
+const data = response.data;
+if (!data || !data.data) return [];
+const production = data.data.map((item: any) => ({
+countryCode,
+country: IGAD.COUNTRIES[countryCode as keyof typeof IGAD.COUNTRIES]?.name,
+cropCode: item.item,
+crop: IGAD.CROPS[item.item as keyof typeof IGAD.CROPS]?.name || item.item,
+year: item.year,
+production: parseFloat(item.value) || 0,
+unit: item.unit || 'tonnes',
+area: parseFloat(item.area) || 0,
+areaUnit: 'ha',
+yield: parseFloat(item.yield) || 0,
+yieldUnit: 'kg/ha',
+source: 'FAOSTAT',
+date: new Date(item.year, 0, 1).toISOString()
+}));
+return production;
+} catch (error) {
+console.error('FAOSTAT Production Error:', error);
+return [];
+}
+}
+
+--- Page 6 ---
+/**
+* Fetch historical prices for trend analysis
+*/
+export async function fetchFAOPriceHistory(
+countryCode: string,
+cropCode: string,
+years: number = 5
+) {
+const faoCountryCode = IGAD.COUNTRIES[countryCode as keyof typeof
+IGAD.COUNTRIES]?.faoCode;
+const currentYear = new Date().getFullYear();
+const startYear = currentYear - years + 1;
+if (!faoCountryCode) {
+console.error(`Invalid country code: ${countryCode}`);
+return [];
+}
+try {
+const yearsRange = Array.from({ length: years }, (_, i) => startYear + i).join(',');
+const response = await axios.get(`${FAOSTAT_API}/#api/data/FBS`, {
+params: {
+area: faoCountryCode,
+item: cropCode,
+year: yearsRange,
+format: 'json'
+},
+timeout: 15000
+});
+const data = response.data;
+if (!data || !data.data) return [];
+const history = data.data.map((item: any) => ({
+year: item.year,
+price: parseFloat(item.value) || 0,
+unit: item.unit || 'USD'
+}));
+return history;
+} catch (error) {
+
+--- Page 7 ---
+console.error('FAOSTAT Price History Error:', error);
+return [];
+}
+}
+//
+========================================================================
+====
+// 3. ICPAC INTEGRATION
+//
+========================================================================
+====
+const ICPAC_API = 'https://www.icpac.net';
+const ICPAC_DATA_CENTER =
+'https://resilience.igad.int/tools_info_systems/data-center-for-climate/';
+/**
+* Hazard Alert from ICPAC
+*/
+export interface ICPACAlert {
+id: string;
+type: 'drought' | 'flood' | 'pest' | 'rainfall' | 'extreme_rainfall' | 'locust';
+severity: 'low' | 'moderate' | 'high' | 'extreme';
+title: string;
+description: string;
+countries: string[];
+regions: string[];
+startDate: string;
+endDate?: string;
+source: string;
+issuedDate: string;
+advisory: string;
+mitigationMeasures: string[];
+}
+/**
+* Agriculture Watch Data from ICPAC
+*/
+export interface ICPACAgricultureWatch {
+id: string;
+date: string;
+summary: string;
+crops: Record<string, {
+
+--- Page 8 ---
+condition: 'poor' | 'fair' | 'good' | 'excellent';
+trend: 'declining' | 'stable' | 'improving';
+anomaly: number;
+}>;
+rangeland: Record<string, 'poor' | 'fair' | 'good' | 'excellent'>;
+rainfall: {
+anomalies: Record<string, number>;
+percentOfNormal: Record<string, number>;
+};
+soilMoisture: Record<string, number>;
+vegetationIndex: Record<string, number>;
+}
+/**
+* Climate Forecast from ICPAC
+*/
+export interface ICPACClimateForecast {
+id: string;
+region: string;
+season: string;
+period: string;
+temperature: {
+min: number;
+max: number;
+avg: number;
+anomaly: number;
+};
+rainfall: {
+total: number;
+anomaly: number;
+percentOfNormal: number;
+};
+probability: number;
+confidence: 'low' | 'medium' | 'high';
+issuedDate: string;
+}
+/**
+* Fetch hazard alerts from ICPAC
+*/
+export async function fetchICPACAlerts(countryCode?: string): Promise<ICPACAlert[]> {
+// In production, this would call ICPAC's actual API
+// For now, we'll use a combination of mock data and web scraping
+
+--- Page 9 ---
+try {
+// Try to fetch from ICPAC data center
+const response = await axios.get(`${ICPAC_DATA_CENTER}`, {
+timeout: 15000
+});
+// Parse the HTML to extract alerts
+// This is a placeholder - actual implementation would use proper parsing
+const alerts: ICPACAlert[] = [];
+// If we can't get from API, use mock data
+if (alerts.length === 0) {
+// Return mock data based on current conditions
+const mockAlerts: ICPACAlert[] = [
+{
+id: 'igad-2026-001',
+type: 'drought',
+severity: 'high',
+title: 'Severe Drought Warning for Eastern IGAD Region',
+description: 'Prolonged dry conditions affecting crop yields and livestock in eastern parts
+of Kenya, Somalia, and Ethiopia',
+countries: ['KE', 'SO', 'ET'],
+regions: ['Eastern Kenya', 'Southern Somalia', 'Ogaden', 'Borena'],
+startDate: '2026-06-01',
+endDate: '2026-09-30',
+source: 'ICPAC',
+issuedDate: new Date().toISOString().split('T')[0],
+advisory: 'Farmers are advised to conserve water, use drought-resistant crop varieties,
+and consider early harvesting where possible',
+mitigationMeasures: [
+'Practice water conservation techniques',
+'Use drought-resistant crop varieties',
+'Provide supplementary feed for livestock',
+'Consider early harvesting to avoid total crop loss'
+]
+},
+{
+id: 'igad-2026-002',
+type: 'flood',
+severity: 'moderate',
+title: 'Flood Alert for Western IGAD Region',
+description: 'Heavy rainfall expected in western regions of Uganda and Kenya, with
+potential for flooding',
+countries: ['UG', 'KE'],
+
+--- Page 10 ---
+regions: ['Western Uganda', 'Nyanza', 'Western Kenya'],
+startDate: '2026-07-15',
+endDate: '2026-07-25',
+source: 'ICPAC',
+issuedDate: new Date().toISOString().split('T')[0],
+advisory: 'Farmers in low-lying areas should take precautions to protect crops and
+livestock from potential flooding',
+mitigationMeasures: [
+'Move livestock to higher ground',
+'Harvest mature crops early',
+'Clear drainage channels',
+'Avoid planting in flood-prone areas'
+]
+},
+{
+id: 'igad-2026-003',
+type: 'rainfall',
+severity: 'low',
+title: 'Below-Normal Rainfall in Northern IGAD Region',
+description: 'Below-normal rainfall conditions observed in parts of Sudan and South
+Sudan',
+countries: ['SD', 'SS'],
+regions: ['Darfur', 'Kordofan', 'Upper Nile'],
+startDate: '2026-07-01',
+endDate: '2026-07-31',
+source: 'ICPAC',
+issuedDate: new Date().toISOString().split('T')[0],
+advisory: 'Farmers should monitor soil moisture and consider irrigation where available',
+mitigationMeasures: [
+'Monitor soil moisture levels',
+'Consider supplemental irrigation',
+'Use drought-tolerant varieties'
+]
+}
+];
+// Filter by country if specified
+if (countryCode) {
+return mockAlerts.filter(alert => alert.countries.includes(countryCode));
+}
+return mockAlerts;
+}
+
+--- Page 11 ---
+return alerts;
+} catch (error) {
+console.error('ICPAC Alerts Error:', error);
+// Return fallback mock data
+const fallbackAlerts: ICPACAlert[] = [
+{
+id: 'fallback-001',
+type: 'drought',
+severity: 'moderate',
+title: 'Drought Conditions in IGAD Region',
+description: 'Dry conditions affecting parts of the IGAD region',
+countries: Object.keys(IGAD.COUNTRIES),
+regions: [],
+startDate: new Date().toISOString().split('T')[0],
+source: 'ICPAC (Fallback)',
+issuedDate: new Date().toISOString().split('T')[0],
+advisory: 'Monitor weather conditions and conserve water',
+mitigationMeasures: []
+}
+];
+if (countryCode) {
+return fallbackAlerts.filter(alert => alert.countries.includes(countryCode));
+}
+return fallbackAlerts;
+}
+}
+/**
+* Fetch Agriculture Watch data from ICPAC
+*/
+export async function fetchICPACAgricultureWatch(): Promise<ICPACAgricultureWatch> {
+try {
+// Try to fetch from ICPAC
+const response = await axios.get(`${ICPAC_API}/agriculture-watch`, {
+timeout: 15000
+});
+// Parse the data
+// This is a placeholder - actual implementation would parse the response
+// Return mock data for now
+
+--- Page 12 ---
+return {
+id: 'igad-agwatch-2026-07',
+date: new Date().toISOString().split('T')[0],
+summary: 'Mixed agricultural conditions across the IGAD region with drought affecting
+eastern areas and good conditions in western regions',
+crops: {
+maize: { condition: 'poor', trend: 'declining', anomaly: -25 },
+sorghum: { condition: 'fair', trend: 'stable', anomaly: -5 },
+wheat: { condition: 'good', trend: 'improving', anomaly: 10 },
+millet: { condition: 'fair', trend: 'stable', anomaly: 0 }
+},
+rangeland: {
+eastern: 'poor',
+western: 'good',
+northern: 'fair',
+southern: 'good'
+},
+rainfall: {
+anomalies: {
+eastern: -40,
+western: 15,
+northern: -10,
+southern: 20
+},
+percentOfNormal: {
+eastern: 60,
+western: 115,
+northern: 90,
+southern: 120
+}
+},
+soilMoisture: {
+eastern: 25,
+western: 75,
+northern: 50,
+southern: 80
+},
+vegetationIndex: {
+eastern: 0.3,
+western: 0.8,
+northern: 0.5,
+southern: 0.7
+}
+};
+
+--- Page 13 ---
+} catch (error) {
+console.error('ICPAC Agriculture Watch Error:', error);
+// Return fallback data
+return {
+id: 'fallback-agwatch',
+date: new Date().toISOString().split('T')[0],
+summary: 'Agricultural conditions data temporarily unavailable',
+crops: {},
+rangeland: {},
+rainfall: { anomalies: {}, percentOfNormal: {} },
+soilMoisture: {},
+vegetationIndex: {}
+};
+}
+}
+/**
+* Fetch climate forecast from ICPAC
+*/
+export async function fetchICPACClimateForecast(
+region?: string
+): Promise<ICPACClimateForecast[]> {
+try {
+// Try to fetch from ICPAC
+const response = await axios.get(`${ICPAC_API}/climate-forecast`, {
+params: region ? { region } : {},
+timeout: 15000
+});
+// Parse the data
+// This is a placeholder - actual implementation would parse the response
+// Return mock data for now
+return [
+{
+id: 'forecast-2026-07',
+region: region || 'IGAD',
+season: 'July-September',
+period: '2026-07-01 to 2026-09-30',
+temperature: {
+min: 18,
+max: 30,
+avg: 24,
+
+--- Page 14 ---
+anomaly: 1.5
+},
+rainfall: {
+total: 200,
+anomaly: -25,
+percentOfNormal: 75
+},
+probability: 70,
+confidence: 'medium',
+issuedDate: new Date().toISOString().split('T')[0]
+}
+];
+} catch (error) {
+console.error('ICPAC Climate Forecast Error:', error);
+return [];
+}
+}
+//
+========================================================================
+====
+// 4. OPEN-METEO INTEGRATION
+//
+========================================================================
+====
+const OPENMETEO_API = 'https://api.open-meteo.com/v1';
+/**
+* Weather Data
+*/
+export interface WeatherData {
+latitude: number;
+longitude: number;
+current: {
+temperature: number;
+humidity: number;
+windSpeed: number;
+rainfall: number;
+time: string;
+};
+forecast: {
+date: string;
+temperatureMin: number;
+
+--- Page 15 ---
+temperatureMax: number;
+rainfall: number;
+humidity: number;
+windSpeed: number;
+}[];
+}
+/**
+* Fetch weather data from Open-Meteo
+*/
+export async function fetchWeather(
+latitude: number,
+longitude: number,
+days: number = 7
+): Promise<WeatherData> {
+try {
+const response = await axios.get(OPENMETEO_API, {
+params: {
+latitude,
+longitude,
+daily:
+'temperature_2m_min,temperature_2m_max,precipitation_sum,relative_humidity_2m_mean,win
+dspeed_10m_max',
+current: 'temperature_2m,relative_humidity_2m,precipitation,windspeed_10m',
+timezone: 'auto',
+forecast_days: days
+},
+timeout: 15000
+});
+const data = response.data;
+return {
+latitude,
+longitude,
+current: {
+temperature: data.current.temperature_2m,
+humidity: data.current.relative_humidity_2m,
+windSpeed: data.current.windspeed_10m,
+rainfall: data.current.precipitation,
+time: data.current.time
+},
+forecast: data.daily.time.map((date: string, i: number) => ({
+date,
+
+--- Page 16 ---
+temperatureMin: data.daily.temperature_2m_min[i],
+temperatureMax: data.daily.temperature_2m_max[i],
+rainfall: data.daily.precipitation_sum[i],
+humidity: data.daily.relative_humidity_2m_mean[i],
+windSpeed: data.daily.windspeed_10m_max[i]
+}))
+};
+} catch (error) {
+console.error('Open-Meteo Error:', error);
+return {
+latitude,
+longitude,
+current: {
+temperature: 0,
+humidity: 0,
+windSpeed: 0,
+rainfall: 0,
+time: new Date().toISOString()
+},
+forecast: []
+};
+}
+}
+/**
+* Fetch historical weather data
+*/
+export async function fetchHistoricalWeather(
+latitude: number,
+longitude: number,
+startDate: string,
+endDate: string
+) {
+try {
+const response = await axios.get(OPENMETEO_API, {
+params: {
+latitude,
+longitude,
+start_date: startDate,
+end_date: endDate,
+daily: 'temperature_2m_min,temperature_2m_max,precipitation_sum',
+timezone: 'auto'
+},
+timeout: 15000
+
+--- Page 17 ---
+});
+const data = response.data;
+return {
+latitude,
+longitude,
+historical: data.daily.time.map((date: string, i: number) => ({
+date,
+temperatureMin: data.daily.temperature_2m_min[i],
+temperatureMax: data.daily.temperature_2m_max[i],
+
+
+================================================================================
+DOCUMENT 3: Untitled document (2).pdf
+================================================================================
+
+--- Page 1 ---
+# KilimoPRO 2.0 - Full Implementation
+*Production-ready agricultural intelligence platform for all 8 IGAD countries*
+---
+## 🚀 Quick Start
+### Prerequisites
+- Node.js 18+
+- PostgreSQL 14+
+- Twilio account (for SMS) or Africa's Talking
+### Setup
+```bash
+# 1. Clone and install
+npx create-next-app@latest kilimopro-v2 --typescript --tailwind --eslint --app --src-dir=false
+cd kilimopro-v2
+npm install @radix-ui/react-select @radix-ui/react-tabs @tanstack/react-query axios drizzle-orm
+pg postgres leaflet react-leaflet zod
+npm install -D drizzle-kit @types/pg @types/leaflet
+# 2. Configure database
+createdb kilimopro
+# Update .env with DATABASE_URL=postgresql://user:password@localhost:5432/kilimopro
+# 3. Set up Drizzle
+npx drizzle-kit init
+# Update drizzle.config.ts (see below)
+npx drizzle-kit generate
+# 4. Run migrations
+npx drizzle-kit migrate
+# 5. Seed data
+npm run db:seed
+# 6. Start server
+npm run dev
+```
+---
+## 📁 Project Structure
+
+--- Page 2 ---
+```
+kilimopro-v2/
+├── app/
+│ ├── api/
+│ │ ├── climate/
+│ │ │ ├── alerts/
+│ │ │ │ └── route.ts # GET climate alerts
+│ │ │ └── forecast/
+│ │ │ └── route.ts # GET weather forecast
+│ │ ├── prices/
+│ │ │ └── route.ts # GET market prices
+│ │ ├── advisory/
+│ │ │ └── route.ts # GET agricultural advice
+│ │ └── sms/
+│ │ └── route.ts # POST SMS webhook
+│ ├── (dashboard)/
+│ │ ├── layout.tsx # Dashboard layout
+│ │ ├── page.tsx # Dashboard home
+│ │ ├── climate/
+│ │ │ └── page.tsx # Climate dashboard
+│ │ ├── prices/
+│ │ │ └── page.tsx # Prices dashboard
+│ │ └── advisory/
+│ │ └── page.tsx # Advisory dashboard
+│ ├── layout.tsx
+│ ├── page.tsx
+│ └── globals.css
+├── lib/
+│ ├── db/
+│ │ ├── schema.ts # Database schema
+│ │ ├── index.ts # DB connection
+│ │ └── seed.ts # Seed data
+│ ├── data/
+│ │ ├── faostat.ts # FAOSTAT integration
+│ │ ├── icpac.ts # ICPAC integration
+│ │ ├── openmeteo.ts # Open-Meteo integration
+│ │ └── aggregator.ts # Data aggregation layer
+│ └── utils/
+│ ├── cache.ts # Caching utilities
+│ └── location.ts # Location utilities
+├── components/
+│ ├── ui/
+│ │ ├── card.tsx
+
+--- Page 3 ---
+│ │ ├── select.tsx
+│ │ └── tabs.tsx
+│ └── shared/
+│ └── climate-map.tsx
+├── types/
+│ └── index.ts
+├── drizzle/
+│ └── migrations/
+├── .env.example
+├── package.json
+├── tailwind.config.ts
+├── tsconfig.json
+└── drizzle.config.ts
+```
+---
+## 📦 package.json
+```json
+{
+"name": "kilimopro-v2",
+"version": "1.0.0",
+"private": true,
+"scripts": {
+"dev": "next dev",
+"build": "next build",
+"start": "next start",
+"lint": "next lint",
+"db:generate": "drizzle-kit generate",
+"db:migrate": "drizzle-kit migrate",
+"db:seed": "tsx lib/db/seed.ts",
+"db:studio": "drizzle-kit studio"
+},
+"dependencies": {
+"@radix-ui/react-dropdown-menu": "^2.1.1",
+"@radix-ui/react-select": "^2.1.1",
+"@radix-ui/react-tabs": "^1.1.1",
+"@tanstack/react-query": "^5.50.0",
+"axios": "^1.7.2",
+"drizzle-orm": "^0.30.4",
+"leaflet": "^1.9.4",
+"lucide-react": "^0.378.0",
+"next": "14.2.3",
+
+--- Page 4 ---
+"pg": "^8.11.3",
+"postgres": "^3.4.4",
+"react": "^18.3.1",
+"react-dom": "^18.3.1",
+"react-leaflet": "^4.2.1",
+"tailwind-merge": "^2.3.0",
+"tailwindcss-animate": "^1.0.7",
+"zod": "^3.23.8"
+},
+"devDependencies": {
+"@types/leaflet": "^1.9.12",
+"@types/node": "^20.12.12",
+"@types/pg": "^8.11.6",
+"@types/react": "^18.3.3",
+"@types/react-dom": "^18.3.0",
+"autoprefixer": "^10.4.19",
+"drizzle-kit": "^0.20.17",
+"postcss": "^8.4.38",
+"tailwindcss": "^3.4.3",
+"typescript": "^5.4.5",
+"tsx": "^4.16.2"
+}
+}
+```
+---
+## 🗃 Database Schema
+### lib/db/schema.ts
+```typescript
+import { pgTable, serial, varchar, text, timestamp, date, decimal, integer, jsonb, boolean } from
+'drizzle-orm/pg-core';
+// ============================================
+// CORE TABLES
+// ============================================
+// IGAD Countries
+export const countries = pgTable('countries', {
+id: serial('id').primaryKey(),
+code: varchar('code', { length: 2 }).unique().notNull(),
+name: varchar('name', { length: 100 }).notNull(),
+
+--- Page 5 ---
+igadMember: boolean('igad_member').default(false),
+flag: varchar('flag', { length: 5 }),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// Regions/Provinces/States
+export const regions = pgTable('regions', {
+id: serial('id').primaryKey(),
+countryId: integer('country_id').references(() => countries.id),
+code: varchar('code', { length: 10 }).notNull(),
+name: varchar('name', { length: 100 }).notNull(),
+latitude: decimal('latitude', { precision: 10, scale: 7 }),
+longitude: decimal('longitude', { precision: 10, scale: 7 }),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// Crops
+export const crops = pgTable('crops', {
+id: serial('id').primaryKey(),
+code: varchar('code', { length: 10 }).unique().notNull(),
+name: varchar('name', { length: 100 }).notNull(),
+scientificName: varchar('scientific_name', { length: 100 }),
+category: varchar('category', { length: 50 }),
+faostatCode: varchar('faostat_code', { length: 10 }),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// Markets
+export const markets = pgTable('markets', {
+id: serial('id').primaryKey(),
+regionId: integer('region_id').references(() => regions.id),
+name: varchar('name', { length: 100 }).notNull(),
+latitude: decimal('latitude', { precision: 10, scale: 7 }),
+longitude: decimal('longitude', { precision: 10, scale: 7 }),
+type: varchar('type', { length: 50 }), // wholesale, retail, farmgate
+isActive: boolean('is_active').default(true),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// ============================================
+// DATA TABLES
+// ============================================
+// Market Prices (cached from FAOSTAT)
+
+--- Page 6 ---
+export const marketPrices = pgTable('market_prices', {
+id: serial('id').primaryKey(),
+marketId: integer('market_id').references(() => markets.id),
+cropId: integer('crop_id').references(() => crops.id),
+countryCode: varchar('country_code', { length: 2 }).notNull(),
+date: date('date').notNull(),
+price: decimal('price', { precision: 12, scale: 2 }).notNull(),
+priceMin: decimal('price_min', { precision: 12, scale: 2 }),
+priceMax: decimal('price_max', { precision: 12, scale: 2 }),
+unit: varchar('unit', { length: 20 }).notNull(),
+currency: varchar('currency', { length: 3 }).notNull(),
+source: varchar('source', { length: 50 }).notNull(),
+isVerified: boolean('is_verified').default(false),
+createdAt: timestamp('created_at').defaultNow(),
+updatedAt: timestamp('updated_at').defaultNow(),
+});
+// Climate Data (cached from ICPAC, Open-Meteo)
+export const climateData = pgTable('climate_data', {
+id: serial('id').primaryKey(),
+regionId: integer('region_id').references(() => regions.id),
+countryCode: varchar('country_code', { length: 2 }).notNull(),
+date: date('date').notNull(),
+temperatureMin: decimal('temperature_min', { precision: 5, scale: 2 }),
+temperatureMax: decimal('temperature_max', { precision: 5, scale: 2 }),
+temperatureAvg: decimal('temperature_avg', { precision: 5, scale: 2 }),
+rainfall: decimal('rainfall', { precision: 8, scale: 2 }),
+humidity: decimal('humidity', { precision: 5, scale: 2 }),
+windSpeed: decimal('wind_speed', { precision: 5, scale: 2 }),
+soilMoisture: decimal('soil_moisture', { precision: 5, scale: 2 }),
+source: varchar('source', { length: 50 }).notNull(),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// Hazard Alerts (from ICPAC)
+export const hazardAlerts = pgTable('hazard_alerts', {
+id: serial('id').primaryKey(),
+regionId: integer('region_id').references(() => regions.id),
+type: varchar('type', { length: 50 }).notNull(), // drought, flood, pest, rainfall, extreme_rainfall
+severity: varchar('severity', { length: 20 }).notNull(), // low, moderate, high, extreme
+title: varchar('title', { length: 200 }).notNull(),
+description: text('description'),
+affectedCountries: jsonb('affected_countries').notNull(),
+affectedRegions: jsonb('affected_regions'),
+
+--- Page 7 ---
+startDate: date('start_date').notNull(),
+endDate: date('end_date'),
+source: varchar('source', { length: 50 }).notNull(),
+isActive: boolean('is_active').default(true),
+createdAt: timestamp('created_at').defaultNow(),
+updatedAt: timestamp('updated_at').defaultNow(),
+});
+// Agriculture Watch (from ICPAC)
+export const agricultureWatch = pgTable('agriculture_watch', {
+id: serial('id').primaryKey(),
+date: date('date').notNull(),
+summary: text('summary').notNull(),
+cropConditions: jsonb('crop_conditions').notNull(),
+rangelandConditions: jsonb('rangeland_conditions').notNull(),
+rainfallAnomalies: jsonb('rainfall_anomalies'),
+soilMoisture: jsonb('soil_moisture'),
+vegetationIndex: jsonb('vegetation_index'),
+source: varchar('source', { length: 50 }).notNull(),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// Advisory Content
+export const advisoryContent = pgTable('advisory_content', {
+id: serial('id').primaryKey(),
+regionId: integer('region_id').references(() => regions.id),
+cropId: integer('crop_id').references(() => crops.id),
+countryCode: varchar('country_code', { length: 2 }),
+type: varchar('type', { length: 50 }).notNull(), // planting, harvesting, fertilizer, pest_control,
+irrigation
+title: varchar('title', { length: 200 }).notNull(),
+content: text('content').notNull(),
+language: varchar('language', { length: 10 }).notNull(),
+startDate: date('start_date'),
+endDate: date('end_date'),
+season: varchar('season', { length: 50 }), // long_rains, short_rains, dry_season
+isActive: boolean('is_active').default(true),
+createdAt: timestamp('created_at').defaultNow(),
+updatedAt: timestamp('updated_at').defaultNow(),
+});
+// ============================================
+// USER & SMS TABLES
+// ============================================
+
+--- Page 8 ---
+// Users
+export const users = pgTable('users', {
+id: serial('id').primaryKey(),
+phoneNumber: varchar('phone_number', { length: 20 }).unique(),
+countryId: integer('country_id').references(() => countries.id),
+regionId: integer('region_id').references(() => regions.id),
+language: varchar('language', { length: 10 }).default('en'),
+preferredCrops: jsonb('preferred_crops'),
+farmSize: decimal('farm_size', { precision: 10, scale: 2 }),
+farmSizeUnit: varchar('farm_size_unit', { length: 10 }),
+createdAt: timestamp('created_at').defaultNow(),
+lastActiveAt: timestamp('last_active_at'),
+});
+// SMS Logs
+export const smsLogs = pgTable('sms_logs', {
+id: serial('id').primaryKey(),
+userId: integer('user_id').references(() => users.id),
+phoneNumber: varchar('phone_number', { length: 20 }).notNull(),
+message: text('message').notNull(),
+direction: varchar('direction', { length: 10 }).notNull(), // in, out
+status: varchar('status', { length: 20 }).notNull(), // sent, delivered, failed, read
+gateway: varchar('gateway', { length: 50 }), // twilio, africastalking, ussd
+gatewayMessageId: varchar('gateway_message_id', { length: 100 }),
+cost: decimal('cost', { precision: 10, scale: 4 }),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// USSD Sessions
+export const ussdSessions = pgTable('ussd_sessions', {
+id: serial('id').primaryKey(),
+phoneNumber: varchar('phone_number', { length: 20 }).notNull(),
+sessionId: varchar('session_id', { length: 100 }).notNull(),
+network: varchar('network', { length: 50 }),
+currentMenu: varchar('current_menu', { length: 100 }),
+menuHistory: jsonb('menu_history'),
+userInput: jsonb('user_input'),
+isActive: boolean('is_active').default(true),
+createdAt: timestamp('created_at').defaultNow(),
+updatedAt: timestamp('updated_at').defaultNow(),
+});
+// ============================================
+
+--- Page 9 ---
+// CACHE & LOGGING
+// ============================================
+// Cache for API responses
+export const cache = pgTable('cache', {
+id: serial('id').primaryKey(),
+key: varchar('key', { length: 255 }).unique().notNull(),
+value: jsonb('value').notNull(),
+expiresAt: timestamp('expires_at').notNull(),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// API Request Logs
+export const apiLogs = pgTable('api_logs', {
+id: serial('id').primaryKey(),
+endpoint: varchar('endpoint', { length: 100 }).notNull(),
+method: varchar('method', { length: 10 }).notNull(),
+status: integer('status').notNull(),
+requestData: jsonb('request_data'),
+responseData: jsonb('response_data'),
+error: text('error'),
+ipAddress: varchar('ip_address', { length: 50 }),
+userAgent: text('user_agent'),
+durationMs: integer('duration_ms'),
+createdAt: timestamp('created_at').defaultNow(),
+});
+// ============================================
+// EXPORT ALL
+// ============================================
+export type Country = typeof countries.$inferSelect;
+export type Region = typeof regions.$inferSelect;
+export type Crop = typeof crops.$inferSelect;
+export type Market = typeof markets.$inferSelect;
+export type MarketPrice = typeof marketPrices.$inferSelect;
+export type ClimateDatum = typeof climateData.$inferSelect;
+export type HazardAlert = typeof hazardAlerts.$inferSelect;
+export type AgricultureWatch = typeof agricultureWatch.$inferSelect;
+export type AdvisoryContent = typeof advisoryContent.$inferSelect;
+export type User = typeof users.$inferSelect;
+export type SmsLog = typeof smsLogs.$inferSelect;
+export type UssdSession = typeof ussdSessions.$inferSelect;
+
+--- Page 10 ---
+export type NewCountry = typeof countries.$inferInsert;
+export type NewRegion = typeof regions.$inferInsert;
+export type NewCrop = typeof crops.$inferInsert;
+export type NewMarket = typeof markets.$inferInsert;
+export type NewMarketPrice = typeof marketPrices.$inferInsert;
+export type NewClimateDatum = typeof climateData.$inferInsert;
+export type NewHazardAlert = typeof hazardAlerts.$inferInsert;
+export type NewAgricultureWatch = typeof agricultureWatch.$inferInsert;
+export type NewAdvisoryContent = typeof advisoryContent.$inferInsert;
+export type NewUser = typeof users.$inferInsert;
+export type NewSmsLog = typeof smsLogs.$inferInsert;
+export type NewUssdSession = typeof ussdSessions.$inferInsert;
+
+stderr:
+Could not get FontBBox from font descriptor because None cannot be parsed as 4 floats
+Could not get FontBBox from font descriptor because None cannot be parsed as 4 floats
