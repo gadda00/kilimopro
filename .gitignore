@@ -67,3 +67,4 @@ skills/
 
 # Lock files (keep only one)
 bun.lock
+.vercel
