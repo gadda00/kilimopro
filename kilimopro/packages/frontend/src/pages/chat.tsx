@@ -206,9 +206,29 @@ export default function ChatPage() {
   const [typingText, setTypingText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
+  // Load messages from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('kilimopro_chat');
+    if (saved) {
+      try { setMessages(JSON.parse(saved)); } catch { /* ignore */ }
+    }
+  }, []);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('kilimopro_chat', JSON.stringify(messages.slice(-20)));
+    }
+  }, [messages]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typingText]);
+
+  function clearChat() {
+    setMessages([]);
+    localStorage.removeItem('kilimopro_chat');
+  }
 
   async function send(text: string) {
     if (!text.trim() || loading) return;
@@ -257,10 +277,22 @@ export default function ChatPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1 flex items-center gap-2">
-        <Brain className="w-6 h-6 text-purple-600" /> Ask KilimoPRO
-      </h1>
-      <p className="text-gray-500 mb-6 text-sm">AI agricultural advisor · Swahili & English · 8 IGAD countries</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Brain className="w-6 h-6 text-purple-600" /> Ask KilimoPRO
+          </h1>
+          <p className="text-gray-500 text-sm">AI agricultural advisor · Swahili & English · 8 IGAD countries</p>
+        </div>
+        {messages.length > 0 && (
+          <button
+            onClick={clearChat}
+            className="text-xs px-3 py-1.5 rounded-lg border text-gray-500 hover:bg-gray-50"
+          >
+            Clear Chat
+          </button>
+        )}
+      </div>
 
       <div className="bg-white rounded-xl border h-[500px] flex flex-col shadow-sm">
         {/* Messages */}

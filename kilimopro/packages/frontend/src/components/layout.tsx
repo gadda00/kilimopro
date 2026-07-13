@@ -5,8 +5,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useState, type ReactNode } from 'react';
-import { CloudRain, AlertTriangle, TrendingUp, Globe, Brain, Camera, BookOpen, User, Menu, X, Activity, Calendar, BarChart3 } from 'lucide-react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { CloudRain, AlertTriangle, TrendingUp, Globe, Brain, Camera, BookOpen, User, Menu, X, Activity, Calendar, BarChart3, Sprout } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { CountrySelector } from '@/components/shared/country-selector';
 import { IGAD } from '@/lib/data/constants';
@@ -19,6 +19,15 @@ export function Layout({ children, country, onCountryChange }: {
   const { t, lang, setLang } = useLang();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+
+  // Fetch alert count for navbar badge
+  useEffect(() => {
+    fetch(`/api/climate/alerts?country=${country}&limit=10`)
+      .then(r => r.json())
+      .then(d => setAlertCount(d.count || 0))
+      .catch(() => {});
+  }, [country]);
 
   const navItems = [
     { href: '/', label: t('nav.home'), icon: Globe },
@@ -28,6 +37,7 @@ export function Layout({ children, country, onCountryChange }: {
     { href: '/forecast', label: 'Forecast', icon: CloudRain },
     { href: '/market', label: t('nav.market'), icon: TrendingUp },
     { href: '/stats', label: 'Stats', icon: BarChart3 },
+    { href: '/production', label: 'Production', icon: Sprout },
     { href: '/calendar', label: 'Calendar', icon: Calendar },
     { href: '/chat', label: t('nav.chat'), icon: Brain },
     { href: '/disease', label: t('nav.disease'), icon: Camera },
@@ -56,11 +66,16 @@ export function Layout({ children, country, onCountryChange }: {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 relative
                       ${active ? 'bg-white/20 text-white' : 'text-green-100 hover:bg-white/10'}`}
                   >
                     <Icon className="w-4 h-4" />
                     {item.label}
+                    {item.href === '/alerts' && alertCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center">
+                        {alertCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
